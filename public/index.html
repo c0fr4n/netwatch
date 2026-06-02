@@ -1988,11 +1988,11 @@ function EventLog({ feed, screens }) {
               <span className={`me-evl-tag me-evl-tag-${isDown ? 'crit' : 'ok'}`}>
                 {isDown ? '↓ DOWN' : '↑ UP'}
               </span>
-              <span className="me-evl-host">{dev ? dev.name : '—'}</span>
+              <span className="me-evl-host">{dev ? dev.name : (f.deviceName || f.group || '—')}</span>
               <span className="me-evl-meta">
                 {dev && <span className="me-evl-ip">{dev.ip}</span>}
                 {dev && <span className="me-evl-sep">·</span>}
-                {dev && <span className="me-evl-loc">{dev.loc}</span>}
+                {dev ? <span className="me-evl-loc">{dev.loc}</span> : f.group && <span className="me-evl-loc">{f.group}</span>}
               </span>
               <span className="me-evl-msg">{f.msg}</span>
             </div>
