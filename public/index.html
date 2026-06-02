@@ -1179,6 +1179,7 @@ input  { font-family: inherit; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.21.3/babel.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script type="text/babel">
 
 const { useState, useEffect, useMemo, useRef } = React;
@@ -1774,6 +1775,38 @@ function TweaksPanelSimple({ theme, density, layout, setTweak }) {
 
 
 // ──────────────────────────────────────────────────────────────
+// Export offline screens → Excel
+// ──────────────────────────────────────────────────────────────
+function exportOfflineExcel(offlineScreens) {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+
+  const rows = offlineScreens.map(s => ({
+    'Nombre':     s.name,
+    'IP':         s.ip,
+    'MAC':        s.mac,
+    'Ubicación':  s.loc,
+    'Modelo':     s.model,
+    'Servidor':   s.server || '—',
+    'Tiempo offline': s.sinceMin > 0 ? `${Math.round(s.sinceMin)} min` : '< 1 min',
+    'Exportado':  now.toLocaleString('es-CL', { timeZone: 'America/Santiago' }),
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+
+  // Ancho de columnas
+  ws['!cols'] = [
+    { wch: 38 }, { wch: 16 }, { wch: 20 }, { wch: 40 },
+    { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 22 },
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Offline');
+  XLSX.writeFile(wb, `offline_${ts}.xlsx`);
+}
+
+// ──────────────────────────────────────────────────────────────
 // Home view — live operations: offline tiles + event log
 // ──────────────────────────────────────────────────────────────
 function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0 }) {
@@ -1790,10 +1823,20 @@ function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0 
         <Card
           title={`Currently Offline · ${offlineScreens.length}`}
           headerRight={offlineScreens.length > 0 && (
-            <span className="me-card-stat me-card-stat-crit">
-              <span className="me-state-dot" />
-              REQUIRES ATTENTION
-            </span>
+            <div style={{display:'flex', alignItems:'center', gap:8}}>
+              <span className="me-card-stat me-card-stat-crit">
+                <span className="me-state-dot" />
+                REQUIRES ATTENTION
+              </span>
+              <button
+                onClick={() => exportOfflineExcel(offlineScreens)}
+                title="Descargar Excel"
+                style={{display:'inline-flex',alignItems:'center',gap:5,padding:'3px 10px',fontSize:11,fontWeight:600,
+                  border:'1px solid #e4e7ec',borderRadius:4,background:'#f8f9fb',cursor:'pointer',color:'#2d3540',whiteSpace:'nowrap'}}
+              >
+                ↓ Excel
+              </button>
+            </div>
           )}
         >
           {offlineScreens.length === 0 ? (
