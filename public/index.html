@@ -1372,20 +1372,16 @@ function NavBar({ active, setActive, search, setSearch }) {
 // ──────────────────────────────────────────────────────────────
 // KPI strip
 // ──────────────────────────────────────────────────────────────
-function KpiStrip({ screens }) {
-  const total = screens.length;
-  const online = screens.filter(s => s.state === 'online').length;
-  const offline = screens.filter(s => s.state === 'offline').length;
-  const warning = screens.filter(s => s.state === 'warning').length;
-  // simulated "scheduled to deploy"
-  const pending = 4;
-
+function KpiStrip({ screens, online, offline, total }) {
+  online  = online  ?? screens.filter(s => s.state === 'online').length;
+  offline = offline ?? screens.filter(s => s.state === 'offline').length;
+  total   = total   ?? screens.length;
   const cards = [
-    { value: total,   label: 'Total Screens' },
-    { value: online,  label: 'Online' },
-    { value: offline, label: 'Offline' },
-    { value: warning, label: 'Warnings' },
-    { value: pending, label: 'Pending Deploys' },
+    { value: total,   label: 'Total',             cls: 'me-kpi-total' },
+    { value: online,  label: 'Online',            cls: 'me-kpi-ok'    },
+    { value: offline, label: 'Offline',           cls: 'me-kpi-crit'  },
+    { value: 0,       label: 'Con advertencia',   cls: 'me-kpi-warn'  },
+    { value: 0,       label: 'Sin señal >90 min', cls: 'me-kpi-mute'  },
   ];
   return (
     <section className="me-kpi-strip">
@@ -1683,7 +1679,7 @@ function App() {
   async function loadData(srv) {
     setLoading(true);
     try {
-      const key = srv || serverKey;
+      const key = srv !== undefined ? srv : serverKey;
       const [devRes, alertRes] = await Promise.all([
         fetch('/api/devices?server=' + key),
         fetch('/api/alerts?server='  + key),
@@ -1724,13 +1720,13 @@ function App() {
     <div className={rootCls}>
       <BrandBar
         online={online} offline={offline} total={total}
-        serverKey={serverKey} setServerKey={setServerKey}
+        serverKey={serverKey} setServerKey={(k) => { setServerKey(k); loadData(k); }}
         loading={loading} onRefresh={() => loadData(serverKey)}
       />
       <NavBar active={active} setActive={setActive} search={search} setSearch={setSearch} />
 
       {active === 'Home' && (
-        <HomeView offlineScreens={offlineScreens} feed={feed} screens={screens} />
+        <HomeView offlineScreens={offlineScreens} feed={feed} screens={screens} online={online} offline={offline} total={total} />
       )}
       {active === 'Screens' && (
         <ScreensView screens={screens} search={search} layout={t.layout} online={online} offline={offline} total={total} />
@@ -1781,7 +1777,7 @@ function TweaksPanelSimple({ theme, density, layout, setTweak }) {
 // ──────────────────────────────────────────────────────────────
 // Home view — live operations: offline tiles + event log
 // ──────────────────────────────────────────────────────────────
-function HomeView({ offlineScreens, feed, screens }) {
+function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0 }) {
   // Only show events for actual disconnect/reconnect (not config/deploy)
   const liveFeed = useMemo(() =>
     feed.filter(f => f.kind === 'online' || f.kind === 'offline'),
@@ -1790,6 +1786,7 @@ function HomeView({ offlineScreens, feed, screens }) {
 
   return (
     <div className="me-view me-view-home">
+      <KpiStrip screens={screens} online={online} offline={offline} total={total} />
       <div className="me-home-grid">
         <Card
           title={`Currently Offline · ${offlineScreens.length}`}
