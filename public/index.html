@@ -1,490 +1,2013 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NetWatch — Monitor MagicINFO Arcoprime</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NetWatch — MagicInfo Display Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+/* ============================================================
+   NetWatch · MagicInfo Display Monitor
+   Hybrid: business-dashboard chrome (light) over NOC content
+   ============================================================ */
+
 :root {
-  --bg: #0a0e17;
-  --surface: #111827;
-  --surface2: #1a2235;
-  --border: rgba(255,255,255,0.07);
-  --text: #e8edf5;
-  --muted: #64748b;
-  --ok: #10b981;
-  --ok-bg: rgba(16,185,129,0.1);
-  --warn: #f59e0b;
-  --warn-bg: rgba(245,158,11,0.1);
-  --danger: #ef4444;
-  --danger-bg: rgba(239,68,68,0.1);
-  --accent: #3b82f6;
-  --accent-bg: rgba(59,130,246,0.1);
-  --bosque: #8b5cf6;
-  --bosque-bg: rgba(139,92,246,0.1);
-  --callecalle: #06b6d4;
-  --callecalle-bg: rgba(6,182,212,0.1);
-  --mono: 'DM Mono', monospace;
-  --sans: 'DM Sans', sans-serif;
+  --me-bg:           #f4f6f9;
+  --me-card:         #ffffff;
+  --me-card-head:    #f8f9fb;
+  --me-brandbar:     #ffffff;
+  --me-nav:          #2d3540;
+  --me-nav-active:   #1f262f;
+  --me-border:       #e4e7ec;
+  --me-border-soft:  #eef1f5;
+  --me-fg:           #2d3540;
+  --me-fg-muted:     #6b7683;
+  --me-fg-subtle:    #94a3b8;
+  --me-fg-dim:       #c2c9d3;
+
+  --me-blue:    #3b9bf2;
+  --me-blue-d:  #1e7fd6;
+  --me-orange:  #f5a623;
+  --me-green:   #4ade80;
+  --me-green-d: #16a34a;
+  --me-red:     #f87171;
+  --me-red-d:   #dc4f4f;
+  --me-purple:  #9b6dff;
+  --me-teal:    #26c6c4;
+  --me-cta:     #16a34a;
+  --me-cta-h:   #128838;
+
+  --me-mono: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --me-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
 
-/* ── Header ── */
-.header {
-  border-bottom: 1px solid var(--border);
-  padding: 1rem 2rem;
+html, body, #root {
+  background: var(--me-bg);
+  color: var(--me-fg);
+  font-family: var(--me-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  height: 100%;
+  overflow: hidden;
+}
+
+button { font-family: inherit; cursor: pointer; }
+input  { font-family: inherit; }
+
+.me-root {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  overflow: hidden;
+}
+
+/* ============================================================
+   Brand bar (white) — 3 columns: brand | counters | clock+user
+   ============================================================ */
+.me-brandbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 10px 28px;
+  background: var(--me-brandbar);
+  border-bottom: 1px solid var(--me-border);
+  min-height: 60px;
+}
+.me-brand { display: flex; align-items: center; gap: 14px; justify-self: start; }
+.me-brand-mark { display: flex; }
+.me-brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+.me-brand-co {
+  font-size: 13px; color: var(--me-fg-muted);
+  letter-spacing: 0.02em; font-weight: 500;
+}
+.me-brand-product {
+  font-size: 18px; font-weight: 700;
+  color: var(--me-fg); letter-spacing: -0.01em;
+}
+
+.me-brandbar-center {
+  display: flex; gap: 28px; align-items: center;
+  justify-self: center;
+}
+.me-bb-stat {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px;
+  color: var(--me-fg-muted);
+  letter-spacing: 0.04em;
+}
+.me-bb-stat-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--me-fg-subtle); }
+.me-bb-stat-ok .me-bb-stat-dot   { background: var(--me-green); box-shadow: 0 0 6px var(--me-green); animation: me-pulse-ok 2.4s ease-in-out infinite; }
+.me-bb-stat-crit .me-bb-stat-dot { background: var(--me-red);   box-shadow: 0 0 6px var(--me-red);   animation: me-blink 1.4s ease-in-out infinite; }
+@keyframes me-pulse-ok {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+.me-bb-stat-label { font-weight: 500; }
+.me-bb-stat-val {
+  font-family: var(--me-mono);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--me-fg);
+}
+.me-bb-stat-ok .me-bb-stat-val   { color: var(--me-green-d); }
+.me-bb-stat-crit .me-bb-stat-val { color: var(--me-red-d); }
+
+.me-brandbar-right {
+  display: flex; align-items: center; gap: 18px;
+  justify-self: end;
+}
+.me-clock {
+  display: flex; flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
+  font-family: var(--me-mono);
+}
+.me-clock-date { font-size: 11px; color: var(--me-fg-muted); letter-spacing: 0.04em; }
+.me-clock-time { font-size: 15px; color: var(--me-fg); font-weight: 700; letter-spacing: 0.04em; }
+.me-iconbtn {
+  width: 30px; height: 30px;
+  border: 1px solid var(--me-border);
+  background: var(--me-card);
+  border-radius: 999px;
+  color: var(--me-fg-muted);
+  font-size: 14px; font-weight: 500;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.me-iconbtn:hover { color: var(--me-blue); border-color: var(--me-blue); }
+
+.me-profile { display: flex; align-items: center; gap: 10px; padding: 4px 10px 4px 4px; border-radius: 6px; }
+.me-profile:hover { background: var(--me-bg); }
+.me-avatar {
+  width: 30px; height: 30px; border-radius: 999px;
+  background: linear-gradient(135deg, var(--me-blue), var(--me-purple));
+  color: white; font-weight: 700; font-size: 13px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.me-profile-name { font-size: 13px; color: var(--me-fg); }
+.me-profile-caret { color: var(--me-fg-muted); font-size: 10px; }
+
+/* ============================================================
+   Nav bar (dark slate)
+   ============================================================ */
+.me-nav {
+  display: flex; align-items: stretch; justify-content: space-between;
+  background: var(--me-nav);
+  color: #d6dde4;
+  padding: 0 16px 0 0;
+}
+.me-nav-tabs { list-style: none; display: flex; }
+.me-tab {
+  padding: 0 18px;
+  height: 44px;
+  background: transparent;
+  border: 0;
+  color: #c2c9d3;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  border-bottom: 2px solid transparent;
+  display: inline-flex; align-items: center;
+}
+.me-tab:hover { color: white; background: rgba(255,255,255,0.04); }
+.me-tab.active {
+  color: white;
+  background: var(--me-nav-active);
+  border-bottom-color: var(--me-green);
+  font-weight: 500;
+}
+
+.me-nav-right { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.me-cta {
+  background: var(--me-cta);
+  color: white;
+  border: 0;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 3px;
+}
+.me-cta:hover { background: var(--me-cta-h); }
+.me-iconbtn-dark {
+  width: 32px; height: 32px;
+  background: rgba(255,255,255,0.06);
+  border: 0;
+  color: white;
+  border-radius: 3px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.me-iconbtn-dark:hover { background: rgba(255,255,255,0.12); }
+
+.me-search {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: white;
+  color: var(--me-fg-muted);
+  padding: 7px 12px;
+  border-radius: 999px;
+  width: 240px;
+}
+.me-search input {
+  border: 0; outline: 0; background: transparent;
+  font-size: 12px;
+  flex: 1; min-width: 0;
+  color: var(--me-fg);
+}
+.me-search input::placeholder { color: var(--me-fg-muted); }
+
+/* ============================================================
+   KPI strip
+   ============================================================ */
+.me-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  background: var(--me-card);
+  border-bottom: 1px solid var(--me-border);
+  margin: 0;
+}
+.me-kpi {
+  padding: 22px 28px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-right: 1px solid var(--me-border);
+  text-align: center;
+}
+.me-kpi:last-child { border-right: 0; }
+.me-kpi-value {
+  font-size: 36px;
+  font-weight: 400;
+  color: var(--me-blue);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-family: var(--me-mono);
+}
+.me-kpi-label {
+  font-size: 12px;
+  color: var(--me-fg-muted);
+  margin-top: 8px;
+  letter-spacing: 0.02em;
+}
+
+/* ============================================================
+   Layout — cards + right sidebar
+   ============================================================ */
+.me-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+  padding: 18px 22px;
+  max-width: 1700px;
+  margin: 0 auto;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.me-layout-nosidebar {
+  grid-template-columns: 1fr;
+}
+.me-main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-content: start;
+  min-height: 0;
+}
+.me-main-fullwidth {
+  grid-template-columns: 1fr;
+  min-height: 0;
+}
+.me-main-fullwidth > .me-card {
+  min-height: 0;
+  height: 100%;
+}
+
+/* ============================================================
+   Card chrome (matches MDM Plus)
+   ============================================================ */
+.me-card {
+  background: var(--me-card);
+  border: 1px solid var(--me-border);
+  border-radius: 4px;
+  display: flex; flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.me-card-body {
+  padding: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.me-card-stats {
+  display: flex; gap: 14px;
+  margin-right: 8px;
+}
+.me-card-stat {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--me-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 2px;
+}
+.me-card-stat-ok   { color: var(--me-green-d); background: rgba(74, 222, 128, 0.14); }
+.me-card-stat-crit { color: var(--me-red-d);   background: rgba(248, 113, 113, 0.14); }
+.me-card-stat .me-state-dot { width: 6px; height: 6px; border-radius: 999px; }
+.me-card-stat-ok .me-state-dot   { background: var(--me-green); }
+.me-card-stat-crit .me-state-dot { background: var(--me-red); animation: me-blink 1.4s ease-in-out infinite; }
+
+/* ============================================================
+   View containers — fill remaining viewport, no scroll
+   ============================================================ */
+.me-view {
+  min-height: 0;
+  overflow: hidden;
+  padding: 16px 22px;
+  max-width: 1700px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex; flex-direction: column;
+}
+
+/* Card body — let each view's children manage their own padding */
+.me-card-pad { padding: 18px 20px; }
+
+/* ─── HOME ─── two columns: offline + event log ─── */
+.me-home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+.me-home-grid > .me-card { min-height: 0; }
+
+.me-home-allclear {
+  display: flex; align-items: center; gap: 14px;
+  padding: 24px 22px;
+}
+.me-home-allclear-dot {
+  width: 36px; height: 36px;
+  border-radius: 999px;
+  background: rgba(74, 222, 128, 0.15);
+  border: 1.5px solid var(--me-green);
+  position: relative;
+  flex-shrink: 0;
+}
+.me-home-allclear-dot::after {
+  content: '';
+  position: absolute; inset: 8px;
+  border-radius: 999px;
+  background: var(--me-green);
+  box-shadow: 0 0 12px var(--me-green);
+  animation: me-pulse-ok 2.4s ease-in-out infinite;
+}
+.me-home-allclear-title {
+  font-size: 14px; font-weight: 700; color: var(--me-fg);
+}
+.me-home-allclear-sub {
+  font-size: 12px; color: var(--me-fg-muted);
+}
+
+/* ─── SCREENS ─── 2 donuts on top + inventory below ─── */
+.me-screens-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+.me-screens-grid > .me-card:nth-child(3) {
+  grid-column: 1 / -1;
+  min-height: 0;
+}
+
+/* ─── REPORTS ─── stats strip + two tables ─── */
+.me-reports-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--me-border);
+  border: 1px solid var(--me-border);
+  border-radius: 4px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.me-stat-block {
+  background: var(--me-card);
+  padding: 18px 22px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.me-stat-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--me-fg-muted);
+  font-weight: 500;
+}
+.me-stat-value {
+  font-family: var(--me-mono);
+  font-size: 32px;
+  font-weight: 400;
+  color: var(--me-fg);
+  line-height: 1;
+}
+.me-stat-ok   { color: var(--me-green-d); }
+.me-stat-crit { color: var(--me-red-d); }
+.me-stat-hint { font-size: 11px; color: var(--me-fg-subtle); }
+
+.me-reports-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  flex: 1; min-height: 0;
+}
+.me-reports-grid > .me-card { min-height: 0; }
+.me-rt-table {
+  display: flex; flex-direction: column;
+  flex: 1; overflow-y: auto;
+}
+.me-rt-head, .me-rt-row {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr 1fr;
+  gap: 10px;
+  padding: 9px 20px;
+  align-items: center;
+}
+.me-rt-head {
+  background: var(--me-card-head);
+  border-bottom: 1px solid var(--me-border);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--me-fg-muted);
+  font-weight: 600;
+}
+.me-rt-row {
+  border-bottom: 1px solid var(--me-border-soft);
+  font-size: 12px;
+}
+.me-rt-row:last-child { border-bottom: 0; }
+.me-rt-label { color: var(--me-fg); }
+.me-rt-num {
+  font-family: var(--me-mono);
+  font-weight: 700;
+  text-align: right;
+}
+
+/* ─── Event log — terminal stream ─── */
+.me-log-pulse {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--me-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--me-fg-muted);
+  padding: 3px 9px;
+  border-radius: 2px;
+  background: var(--me-card-head);
+  border: 1px solid var(--me-border);
+}
+.me-log-pulse-dot {
+  width: 6px; height: 6px; border-radius: 999px;
+  background: var(--me-green);
+  box-shadow: 0 0 6px var(--me-green);
+  animation: me-pulse-ok 1.6s ease-in-out infinite;
+}
+
+.me-eventlog {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+}
+.me-eventlog-body {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--me-border) transparent;
+}
+.me-eventlog-body::-webkit-scrollbar { width: 6px; }
+.me-eventlog-body::-webkit-scrollbar-thumb { background: var(--me-border); border-radius: 3px; }
+.me-eventlog-empty {
+  padding: 30px 20px;
+  text-align: center;
+  color: var(--me-fg-subtle);
+  font-family: var(--me-mono);
+  font-size: 13px;
+}
+
+.me-eventlog-row {
+  display: grid;
+  grid-template-columns: 78px 78px 1.4fr 1.6fr 2fr;
+  gap: 14px;
+  padding: 9px 18px;
+  align-items: baseline;
+  border-bottom: 1px solid var(--me-border-soft);
+  font-family: var(--me-mono);
+  font-size: 12px;
+  transition: background 0.2s;
+}
+.me-eventlog-row:last-child { border-bottom: 0; }
+.me-eventlog-row.is-new {
+  animation: me-evl-flash 2s ease-out;
+}
+@keyframes me-evl-flash {
+  0%   { background: rgba(248, 113, 113, 0.18); }
+  20%  { background: rgba(248, 113, 113, 0.18); }
+  100% { background: transparent; }
+}
+.me-eventlog-online.is-new { animation-name: me-evl-flash-ok; }
+@keyframes me-evl-flash-ok {
+  0%   { background: rgba(74, 222, 128, 0.18); }
+  20%  { background: rgba(74, 222, 128, 0.18); }
+  100% { background: transparent; }
+}
+.me-eventlog-offline { background: rgba(248, 113, 113, 0.03); }
+
+.me-evl-time {
+  color: var(--me-fg-subtle);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+.me-evl-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+  border-radius: 2px;
+  text-align: center;
+  width: fit-content;
+}
+.me-evl-tag-ok   { color: var(--me-green-d); background: rgba(74, 222, 128, 0.16); border: 1px solid rgba(74, 222, 128, 0.3); }
+.me-evl-tag-crit { color: var(--me-red-d);   background: rgba(248, 113, 113, 0.16); border: 1px solid rgba(248, 113, 113, 0.4); }
+.me-evl-host {
+  color: var(--me-fg);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.me-evl-meta {
+  font-size: 11px;
+  color: var(--me-fg-muted);
+  display: flex; gap: 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.me-evl-ip { color: var(--me-fg-muted); }
+.me-evl-loc { color: var(--me-fg-subtle); }
+.me-evl-sep { color: var(--me-fg-dim); }
+.me-evl-msg {
+  color: var(--me-fg-muted);
+  font-size: 11.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+@media (max-width: 1100px) {
+  .me-home-grid { grid-template-columns: 1fr; }
+  .me-screens-grid { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }
+  .me-reports-grid { grid-template-columns: 1fr; }
+  .me-reports-stats { grid-template-columns: repeat(2, 1fr); }
+}
+.me-card-head {
   display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: 0;
-  background: rgba(10,14,23,0.95); backdrop-filter: blur(12px); z-index: 100;
-  gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--me-card-head);
+  border-bottom: 1px solid var(--me-border);
+  border-radius: 4px 4px 0 0;
 }
-.logo { display: flex; align-items: center; gap: 10px; }
-.logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); animation: pulse 2s infinite; }
-@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
-.logo-text { font-size: 14px; font-weight: 600; letter-spacing: .02em; }
-.logo-sub { font-size: 12px; color: var(--muted); }
-
-/* Server tabs */
-.server-tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
-.srv-tab {
-  font-family: var(--mono); font-size: 11px; padding: 5px 14px;
-  border-radius: 5px; border: none; background: transparent;
-  cursor: pointer; transition: all .15s; color: var(--muted);
+.me-card-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--me-fg);
 }
-.srv-tab.active { background: var(--surface2); color: var(--text); }
-.srv-tab.bosque.active { color: var(--bosque); }
-.srv-tab.callecalle.active { color: var(--callecalle); }
-.srv-tab.both.active { color: var(--accent); }
-
-.header-right { display: flex; align-items: center; gap: 12px; }
-.last-update { font-family: var(--mono); font-size: 11px; color: var(--muted); }
-.refresh-btn {
-  font-family: var(--mono); font-size: 11px; padding: 6px 14px;
-  border: 1px solid var(--border); border-radius: 6px;
-  background: var(--surface); color: var(--text); cursor: pointer; transition: all .15s;
+.me-drag-handle {
+  display: inline-grid;
+  grid-template-columns: 2px 2px;
+  grid-template-rows: 2px 2px 2px;
+  gap: 2px;
+  cursor: grab;
+  opacity: 0.5;
 }
-.refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
-.refresh-btn:disabled { opacity: .4; cursor: not-allowed; }
-
-/* ── Layout ── */
-.main { max-width: 1360px; margin: 0 auto; padding: 2rem; }
-
-/* ── Server tags on device cards ── */
-.srv-badge {
-  font-size: 9px; padding: 2px 7px; border-radius: 10px; font-family: var(--mono);
-  font-weight: 500; flex-shrink: 0; align-self: flex-start;
+.me-drag-handle > span {
+  background: var(--me-fg-subtle);
+  width: 2px; height: 2px;
+  border-radius: 999px;
 }
-.srv-badge.bosque { background: var(--bosque-bg); color: var(--bosque); }
-.srv-badge.callecalle { background: var(--callecalle-bg); color: var(--callecalle); }
-
-/* ── Metrics ── */
-.metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 2rem; }
-.metric-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; padding: 1.25rem; position: relative; overflow: hidden;
+.me-card-actions { display: flex; align-items: center; gap: 6px; }
+.me-card-iconbtn {
+  width: 24px; height: 24px;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  color: var(--me-fg-subtle);
+  display: inline-flex; align-items: center; justify-content: center;
 }
-.metric-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
-.metric-card.total::before { background: var(--accent); }
-.metric-card.ok::before { background: var(--ok); }
-.metric-card.offline::before { background: var(--warn); }
-.metric-card.error::before { background: var(--danger); }
-.metric-card.nosignal::before { background: var(--bosque); }
-.metric-label { font-size: 10px; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .06em; }
-.metric-value { font-size: 36px; font-weight: 600; line-height: 1; }
-.metric-card.total .metric-value { color: var(--accent); }
-.metric-card.ok .metric-value { color: var(--ok); }
-.metric-card.offline .metric-value { color: var(--warn); }
-.metric-card.error .metric-value { color: var(--danger); }
-.metric-card.nosignal .metric-value { color: var(--bosque); }
-.metric-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+.me-card-iconbtn:hover { background: var(--me-bg); color: var(--me-fg-muted); }
 
-/* ── Availability bar ── */
-.avail-bar { margin-bottom: 2rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
-.avail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.avail-label { font-size: 12px; color: var(--muted); font-family: var(--mono); }
-.avail-pct { font-size: 22px; font-weight: 600; font-family: var(--mono); }
-.bar-track { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
-
-/* ── Sections ── */
-.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px; }
-.section-title { font-size: 13px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
-.badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-family: var(--mono); }
-.badge-danger { background: var(--danger-bg); color: var(--danger); }
-.badge-muted { background: var(--surface2); color: var(--muted); }
-
-.filter-row { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
-.filter-btn { font-size: 11px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--muted); cursor: pointer; font-family: var(--mono); transition: all .15s; }
-.filter-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
-.search-input {
-  padding: 5px 12px; background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 20px; color: var(--text); font-family: var(--mono); font-size: 11px;
-  outline: none; width: 200px; transition: border-color .15s;
+/* ============================================================
+   Donut
+   ============================================================ */
+.me-donut-wrap {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 24px;
+  align-items: center;
 }
-.search-input:focus { border-color: var(--accent); }
-
-/* ── Device grid ── */
-.device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin-bottom: 2rem; }
-.device-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; padding: 1rem;
-  display: flex; align-items: flex-start; gap: 10px; transition: border-color .15s;
+.me-donut {
+  width: 200px; height: 200px;
 }
-.device-card:hover { border-color: rgba(255,255,255,0.15); }
-.device-card.offline { border-left: 2px solid var(--danger); }
-.device-card.ok { border-left: 2px solid var(--ok); }
-.device-card.warn { border-left: 2px solid var(--warn); }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-.status-dot.ok { background: var(--ok); }
-.status-dot.offline { background: var(--danger); animation: blink 1.5s infinite; }
-.status-dot.warn { background: var(--warn); }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
-.device-info { flex: 1; min-width: 0; }
-.device-name { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.device-group { font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.device-ip { font-size: 10px; color: var(--muted); margin-top: 2px; font-family: var(--mono); }
-.card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
-.device-status { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-family: var(--mono); }
-.device-status.ok { background: var(--ok-bg); color: var(--ok); }
-.device-status.offline { background: var(--danger-bg); color: var(--danger); }
-.device-status.warn { background: var(--warn-bg); color: var(--warn); }
-
-/* ── Alerts ── */
-.alerts-list { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 2rem; }
-.alert-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 12px; }
-.alert-row:last-child { border-bottom: none; }
-.alert-time { font-family: var(--mono); color: var(--muted); min-width: 100px; }
-.alert-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.alert-msg { flex: 1; }
-.alert-name { font-family: var(--mono); color: var(--accent); }
-.alert-group { color: var(--muted); font-size: 11px; }
-.clear-btn { font-size: 11px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 20px; background: transparent; color: var(--muted); cursor: pointer; font-family: var(--mono); transition: all .15s; }
-.clear-btn:hover { border-color: var(--danger); color: var(--danger); }
-
-.empty { text-align: center; padding: 3rem; color: var(--muted); font-size: 13px; }
-.cache-note { font-size: 11px; color: var(--muted); font-family: var(--mono); background: var(--surface2); padding: 6px 14px; border-radius: 6px; display: inline-block; margin-bottom: 1rem; }
-
-@media (max-width: 900px) {
-  .metrics { grid-template-columns: repeat(3, 1fr); }
+.me-donut-center {
+  font-family: var(--me-mono);
+  font-size: 28px;
+  font-weight: 400;
+  fill: var(--me-fg);
 }
-@media (max-width: 600px) {
-  .main { padding: 1rem; }
-  .metrics { grid-template-columns: repeat(2, 1fr); }
-  .header { padding: 0.75rem 1rem; }
+.me-donut-center-sub {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  fill: var(--me-fg-muted);
+  text-transform: uppercase;
 }
+.me-donut-legend {
+  list-style: none;
+  display: flex; flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.me-donut-legend li {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+}
+.me-legend-swatch {
+  width: 12px; height: 12px;
+  border-radius: 2px;
+}
+.me-legend-label {
+  color: var(--me-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.me-legend-value {
+  font-family: var(--me-mono);
+  color: var(--me-fg-muted);
+  font-size: 12px;
+}
+
+/* ============================================================
+   Activity feed (right column)
+   ============================================================ */
+.me-side {
+  display: flex; flex-direction: column;
+}
+.me-activity {
+  background: var(--me-card);
+  border: 1px solid var(--me-border);
+  border-radius: 4px;
+  display: flex; flex-direction: column;
+  position: sticky; top: 18px;
+  max-height: calc(100vh - 36px);
+}
+.me-activity-list {
+  list-style: none;
+  flex: 1; overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--me-border) transparent;
+}
+.me-activity-list::-webkit-scrollbar { width: 6px; }
+.me-activity-list::-webkit-scrollbar-thumb { background: var(--me-border); border-radius: 3px; }
+
+.me-activity-item {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--me-border-soft);
+  align-items: flex-start;
+}
+.me-activity-item:last-child { border-bottom: 0; }
+.me-activity-item.is-new { animation: me-flash 1.4s ease-out; }
+@keyframes me-flash {
+  0%   { background: rgba(59, 155, 242, 0.10); }
+  100% { background: transparent; }
+}
+.me-activity-icon {
+  width: 30px; height: 30px;
+  border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1;
+  margin-top: 2px;
+}
+.me-aic-ok   { background: var(--me-green); }
+.me-aic-crit { background: var(--me-red); }
+.me-aic-warn { background: var(--me-orange); }
+.me-aic-info { background: var(--me-blue); }
+.me-aic-mute { background: var(--me-fg-subtle); }
+
+.me-activity-body { min-width: 0; }
+.me-activity-msg {
+  font-size: 13px;
+  color: var(--me-fg);
+  line-height: 1.45;
+  word-wrap: break-word;
+}
+.me-activity-screen {
+  font-family: var(--me-mono);
+  font-weight: 700;
+  color: var(--me-fg);
+}
+.me-activity-text { color: var(--me-fg-muted); }
+.me-activity-meta {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 6px;
+  font-size: 11px;
+}
+.me-activity-tag {
+  font-family: var(--me-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 1px 6px;
+  border-radius: 2px;
+}
+.me-tag-ok   { color: var(--me-green-d); background: rgba(74, 222, 128, 0.14); }
+.me-tag-crit { color: var(--me-red-d);   background: rgba(248, 113, 113, 0.14); }
+.me-tag-warn { color: #b27007;           background: rgba(245, 166, 35, 0.14); }
+.me-tag-info { color: var(--me-blue-d);  background: rgba(59, 155, 242, 0.14); }
+.me-tag-mute { color: var(--me-fg-muted); background: var(--me-bg); }
+.me-activity-time {
+  color: var(--me-fg-subtle);
+  font-size: 11px;
+}
+
+/* ============================================================
+   Screen inventory table (inside last card, full width)
+   ============================================================ */
+.me-screens-table {
+  display: flex; flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.me-screens-head, .me-screen-row {
+  display: grid;
+  grid-template-columns: 1.3fr 1.2fr 1fr 1fr 1.2fr 1.3fr auto;
+  gap: 14px;
+  padding: 10px 20px;
+  font-size: 12px;
+  align-items: center;
+}
+.me-screens-head {
+  background: var(--me-card-head);
+  color: var(--me-fg-muted);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-top: 1px solid var(--me-border);
+  border-bottom: 1px solid var(--me-border);
+}
+.me-screens-body {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--me-border) transparent;
+}
+.me-screens-body::-webkit-scrollbar { width: 6px; }
+.me-screens-body::-webkit-scrollbar-thumb { background: var(--me-border); border-radius: 3px; }
+.me-screen-row {
+  border-bottom: 1px solid var(--me-border-soft);
+}
+.me-screen-row:last-child { border-bottom: 0; }
+.me-screen-row:hover { background: var(--me-bg); }
+.me-row-offline { background: rgba(248, 113, 113, 0.04); }
+.me-row-warning { background: rgba(245, 166, 35, 0.04); }
+
+.me-screen-name {
+  font-family: var(--me-mono);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--me-fg);
+}
+.me-screen-loc   { color: var(--me-fg-muted); }
+.me-screen-model { color: var(--me-fg-muted); font-family: var(--me-mono); font-size: 11px; }
+.me-screen-ip    { color: var(--me-fg-muted); font-family: var(--me-mono); font-size: 11px; }
+.me-screen-mac   { color: var(--me-fg-muted); font-family: var(--me-mono); font-size: 11px; letter-spacing: 0; }
+.me-screen-play  { color: var(--me-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.me-screen-state {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--me-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.me-state-dot {
+  width: 6px; height: 6px; border-radius: 999px;
+}
+.me-state-online   { color: var(--me-green-d); background: rgba(74, 222, 128, 0.14); }
+.me-state-online .me-state-dot   { background: var(--me-green); }
+.me-state-offline  { color: var(--me-red-d); background: rgba(248, 113, 113, 0.14); }
+.me-state-offline .me-state-dot  { background: var(--me-red); animation: me-blink 1.4s ease-in-out infinite; }
+.me-state-warning  { color: #b27007; background: rgba(245, 166, 35, 0.14); }
+.me-state-warning .me-state-dot  { background: var(--me-orange); }
+@keyframes me-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+
+.me-screens-empty {
+  padding: 30px 20px; text-align: center; color: var(--me-fg-muted); font-size: 13px;
+}
+
+/* ============================================================
+   Tile / Roster scroll containers — fit inside card body
+   ============================================================ */
+.me-tiles-wrap, .me-roster {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--me-border) transparent;
+}
+.me-tiles-wrap::-webkit-scrollbar, .me-roster::-webkit-scrollbar { width: 6px; }
+.me-tiles-wrap::-webkit-scrollbar-thumb, .me-roster::-webkit-scrollbar-thumb { background: var(--me-border); border-radius: 3px; }
+
+/* ============================================================
+   Tile layout — flat card grid, no screen mock
+   ============================================================ */
+.me-tiles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  padding: 16px 20px 20px;
+}
+.me-tile {
+  position: relative;
+  background: var(--me-card);
+  border: 1px solid var(--me-border);
+  border-radius: 4px;
+  padding: 12px 14px 11px;
+  display: flex; flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  transition: border-color 0.15s, background 0.15s;
+}
+.me-tile::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 4px 0 0 4px;
+}
+.me-tile-online::before  { background: var(--me-green); }
+.me-tile-offline::before { background: var(--me-red); animation: me-bar-pulse 1.6s ease-in-out infinite; }
+.me-tile-offline {
+  background: rgba(248, 113, 113, 0.05);
+  border-color: rgba(248, 113, 113, 0.35);
+}
+@keyframes me-bar-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+.me-tile-row1 {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px;
+}
+.me-tile-type {
+  font-family: var(--me-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  color: var(--me-fg-subtle);
+}
+.me-tile-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--me-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.me-tile-name {
+  font-family: var(--me-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--me-fg);
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+.me-tile-offline .me-tile-name { color: var(--me-red-d); }
+
+.me-tile-id {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--me-mono);
+  font-size: 10px;
+  color: var(--me-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.me-tile-ip   { color: var(--me-fg-muted); }
+.me-tile-mac  { color: var(--me-fg-subtle); }
+.me-tile-sep  { color: var(--me-fg-dim); }
+
+.me-tile-meta {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--me-fg-muted);
+  min-width: 0;
+}
+.me-tile-loc {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.me-tile-model {
+  font-family: var(--me-mono);
+  font-size: 10px;
+  color: var(--me-fg-subtle);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.me-tile-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--me-border-soft);
+  margin-top: 2px;
+  min-width: 0;
+}
+.me-tile-play {
+  font-size: 11px;
+  color: var(--me-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.me-tile-offline .me-tile-play { color: var(--me-fg-dim); }
+.me-tile-since {
+  font-family: var(--me-mono);
+  font-size: 10px;
+  color: var(--me-fg-subtle);
+  flex-shrink: 0;
+  letter-spacing: 0.04em;
+}
+.me-tile-offline .me-tile-since { color: var(--me-red-d); }
+
+/* ============================================================
+   Roster layout — iconic row per screen
+   ============================================================ */
+.me-roster { display: flex; flex-direction: column; }
+.me-roster-row {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: 14px;
+  padding: 14px 20px;
+  align-items: center;
+  border-bottom: 1px solid var(--me-border-soft);
+}
+.me-roster-row:last-child { border-bottom: 0; }
+.me-roster-row:hover { background: var(--me-bg); }
+.me-roster-offline { background: rgba(248, 113, 113, 0.04); }
+.me-roster-warning { background: rgba(245, 166, 35, 0.04); }
+
+.me-roster-icon {
+  position: relative;
+  width: 40px; height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--me-card-head);
+  border: 1px solid var(--me-border);
+  border-radius: 4px;
+  color: var(--me-fg-muted);
+}
+.me-roster-online .me-roster-icon { color: var(--me-green-d); border-color: rgba(74,222,128,0.4); background: rgba(74,222,128,0.06); }
+.me-roster-offline .me-roster-icon { color: var(--me-red-d); border-color: rgba(248,113,113,0.4); background: rgba(248,113,113,0.06); }
+.me-roster-warning .me-roster-icon { color: #b27007; border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.06); }
+.me-roster-dot {
+  position: absolute;
+  right: -2px; bottom: -2px;
+  width: 14px; height: 14px;
+  background: var(--me-card);
+  border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.me-roster-dot .me-state-dot { width: 8px; height: 8px; }
+
+.me-roster-name {
+  font-family: var(--me-mono);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--me-fg);
+  margin-bottom: 2px;
+}
+.me-roster-sub {
+  font-size: 11px;
+  color: var(--me-fg-muted);
+}
+.me-roster-ip { font-family: var(--me-mono); }
+.me-roster-sep { color: var(--me-fg-dim); margin: 0 4px; }
+.me-roster-meta {
+  text-align: right;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.me-roster-play {
+  font-size: 12px;
+  color: var(--me-fg);
+}
+.me-roster-status {
+  font-family: var(--me-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 2px;
+  align-self: flex-end;
+}
+
+/* ============================================================
+   THEME — Bunker (NOC dark, monochrome green accents)
+   ============================================================ */
+.me-theme-bunker {
+  --me-bg:           #0a0e14;
+  --me-card:         #0f151c;
+  --me-card-head:    #131a23;
+  --me-brandbar:     #0f151c;
+  --me-nav:          #060a10;
+  --me-nav-active:   #0f151c;
+  --me-border:       #1e2d1e;
+  --me-border-soft:  #15202a;
+  --me-fg:           #d6dde4;
+  --me-fg-muted:     #8a96a4;
+  --me-fg-subtle:    #5d6776;
+  --me-fg-dim:       #404954;
+  --me-cta:          var(--me-green-d);
+}
+.me-theme-bunker .me-brand-co { color: var(--me-fg-muted); }
+.me-theme-bunker .me-brand-product { color: var(--me-green); letter-spacing: 0.04em; }
+.me-theme-bunker .me-iconbtn { background: var(--me-card); border-color: var(--me-border); color: var(--me-fg-muted); }
+.me-theme-bunker .me-iconbtn:hover { color: var(--me-green); border-color: var(--me-green); }
+.me-theme-bunker .me-search { background: var(--me-card); }
+.me-theme-bunker .me-search input { color: var(--me-fg); }
+.me-theme-bunker .me-search input::placeholder { color: var(--me-fg-subtle); }
+.me-theme-bunker .me-tab { color: #8a96a4; }
+.me-theme-bunker .me-tab.active { color: var(--me-green); border-bottom-color: var(--me-green); background: var(--me-nav-active); }
+.me-theme-bunker .me-profile-name { color: var(--me-fg); }
+.me-theme-bunker .me-screen-row:hover,
+.me-theme-bunker .me-roster-row:hover { background: #131a23; }
+
+/* ============================================================
+   THEME — Print (high-contrast monochrome, hairlines)
+   ============================================================ */
+.me-theme-print {
+  --me-bg:           #ffffff;
+  --me-card:         #ffffff;
+  --me-card-head:    #ffffff;
+  --me-brandbar:     #ffffff;
+  --me-nav:          #000000;
+  --me-nav-active:   #000000;
+  --me-border:       #000000;
+  --me-border-soft:  #d4d4d4;
+  --me-fg:           #000000;
+  --me-fg-muted:     #555555;
+  --me-fg-subtle:    #999999;
+  --me-fg-dim:       #c2c2c2;
+  --me-cta:          #000000;
+  --me-cta-h:        #333333;
+}
+.me-theme-print { background: #ffffff; }
+.me-theme-print .me-card,
+.me-theme-print .me-activity {
+  border-radius: 0;
+  border-width: 1.5px;
+}
+.me-theme-print .me-card-head { border-bottom-width: 1.5px; background: #ffffff; }
+.me-theme-print .me-screens-head { background: #ffffff; }
+.me-theme-print .me-tile,
+.me-theme-print .me-roster-icon { border-radius: 0; }
+.me-theme-print .me-brand-mark svg circle { stroke: #000000 !important; }
+.me-theme-print .me-avatar { background: #000000; }
+.me-theme-print .me-state-online   { background: transparent; color: #000000; border: 1px solid #000000; }
+.me-theme-print .me-state-online .me-state-dot { background: #000000; }
+.me-theme-print .me-state-offline  { background: #000000; color: #ffffff; border: 1px solid #000000; }
+.me-theme-print .me-state-offline .me-state-dot { background: #ffffff; }
+.me-theme-print .me-state-warning  { background: transparent; color: #000000; border: 1px dashed #000000; }
+.me-theme-print .me-state-warning .me-state-dot { background: #000000; }
+.me-theme-print .me-tile-online   { border-left-color: #000000; }
+.me-theme-print .me-tile-offline  { border-left-color: #000000; background: #f4f4f4; }
+.me-theme-print .me-tile::before  { background: #000000 !important; }
+.me-theme-print .me-roster-icon { background: #ffffff; border-color: #000000 !important; color: #000000 !important; }
+.me-theme-print .me-cta { border: 1px solid #ffffff; }
+.me-theme-print .me-search { border: 1.5px solid #ffffff; }
+
+/* ============================================================
+   DENSITY — Roomy (executive, lots of whitespace)
+   ============================================================ */
+.me-density-roomy .me-card-head      { padding: 16px 22px; }
+.me-density-roomy .me-screens-head,
+.me-density-roomy .me-screen-row     { padding: 16px 28px; }
+.me-density-roomy .me-roster-row     { padding: 20px 28px; }
+.me-density-roomy .me-tiles-grid {
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  padding: 22px 28px 28px;
+}
+.me-density-roomy .me-screen-name,
+.me-density-roomy .me-tile-name,
+.me-density-roomy .me-roster-name    { font-size: 15px; }
+.me-density-roomy .me-card-title     { font-size: 14px; }
+
+/* ============================================================
+   DENSITY — Dense (operator, packed)
+   ============================================================ */
+.me-density-dense .me-card-head      { padding: 7px 12px; }
+.me-density-dense .me-screens-head,
+.me-density-dense .me-screen-row     { padding: 5px 14px; gap: 10px; font-size: 11px; }
+.me-density-dense .me-screen-name    { font-size: 11px; }
+.me-density-dense .me-screen-model,
+.me-density-dense .me-screen-ip,
+.me-density-dense .me-screen-mac     { font-size: 10px; }
+.me-density-dense .me-screen-state   { padding: 1px 5px; font-size: 9px; gap: 4px; }
+.me-density-dense .me-state-dot      { width: 5px; height: 5px; }
+.me-density-dense .me-tiles-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px;
+  padding: 10px 14px;
+}
+.me-density-dense .me-tile          { padding: 8px 10px 7px; gap: 3px; }
+.me-density-dense .me-tile-name     { font-size: 12px; }
+.me-density-dense .me-tile-foot     { padding-top: 4px; }
+.me-density-dense .me-roster-row     { padding: 7px 14px; }
+.me-density-dense .me-roster-icon    { width: 32px; height: 32px; }
+.me-density-dense .me-roster-name    { font-size: 11.5px; }
+.me-density-dense .me-roster-sub     { font-size: 10px; }
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 1240px) {
+  .me-layout { grid-template-columns: 1fr; }
+  .me-activity { position: static; max-height: none; }
+}
+@media (max-width: 820px) {
+  .me-main { grid-template-columns: 1fr; }
+  .me-kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  .me-kpi { border-bottom: 1px solid var(--me-border); }
+  .me-donut-wrap { grid-template-columns: 1fr; }
+  .me-donut { margin: 0 auto; }
+}
+
 </style>
 </head>
 <body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.21.3/babel.min.js"></script>
+<script type="text/babel">
 
-<div class="header">
-  <div class="logo">
-    <div class="logo-dot" id="liveDot"></div>
-    <span class="logo-text">NetWatch</span>
-    <span class="logo-sub" style="margin-left:4px">MagicINFO · Arcoprime</span>
-  </div>
+const { useState, useEffect, useMemo, useRef } = React;
 
-  <div class="server-tabs">
-    <button class="srv-tab bosque" onclick="setServer('bosque', this)">Bosque</button>
-    <button class="srv-tab callecalle" onclick="setServer('callecalle', this)">Callecalle</button>
-    <button class="srv-tab both active" onclick="setServer('both', this)">Ambos</button>
-  </div>
+const C = {
+  online:  '#4ade80',
+  offline: '#f87171',
+  warn:    '#f5a623',
+  blue:    '#3b9bf2',
+  purple:  '#9b6dff',
+  teal:    '#26c6c4',
+  pink:    '#e879a5',
+  slate:   '#94a3b8',
+};
 
-  <div class="header-right">
-    <span class="last-update" id="lastUpdate">Cargando...</span>
-    <button class="refresh-btn" onclick="loadAll()" id="refreshBtn">↻ Actualizar</button>
-  </div>
-</div>
+const KINDS = { indoor: 'Indoor', outdoor: 'Outdoor', videowall: 'Video Wall', kiosk: 'Kiosk' };
 
-<div class="main">
+const fmtAge = (min) => {
+  if (min < 1) return 'just now';
+  if (min < 60) return `${Math.round(min)} min ago`;
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return m === 0 ? `${h} h ago` : `${h} h ${m} m ago`;
+};
 
-  <div class="metrics">
-    <div class="metric-card total">
-      <div class="metric-label">Total</div>
-      <div class="metric-value" id="mTotal">—</div>
-      <div class="metric-sub">dispositivos</div>
+
+// ──────────────────────────────────────────────────────────────
+// Donut chart
+// ──────────────────────────────────────────────────────────────
+function Donut({ data, total, centerLabel, centerSub }) {
+  const size = 200, stroke = 26;
+  const r = (size - stroke) / 2;
+  const cx = size / 2, cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+
+  let offset = 0;
+  const segments = data.map((d, i) => {
+    const dash = (d.value / total) * circumference;
+    const seg = { ...d, dash, offset };
+    offset += dash;
+    return seg;
+  });
+
+  return (
+    <div className="me-donut-wrap">
+      <svg viewBox={`0 0 ${size} ${size}`} className="me-donut">
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#eef1f5" strokeWidth={stroke} />
+        {segments.map((s, i) => (
+          <circle
+            key={i}
+            cx={cx} cy={cy} r={r}
+            fill="none"
+            stroke={s.color}
+            strokeWidth={stroke}
+            strokeDasharray={`${s.dash} ${circumference - s.dash}`}
+            strokeDashoffset={-s.offset}
+            transform={`rotate(-90 ${cx} ${cy})`}
+            style={{ transition: 'stroke-dasharray 0.4s ease' }}
+          />
+        ))}
+        <text x={cx} y={cy - 4} textAnchor="middle" className="me-donut-center">{centerLabel}</text>
+        {centerSub && <text x={cx} y={cy + 18} textAnchor="middle" className="me-donut-center-sub">{centerSub}</text>}
+      </svg>
+      <ul className="me-donut-legend">
+        {data.map((d, i) => (
+          <li key={i}>
+            <span className="me-legend-swatch" style={{ background: d.color }} />
+            <span className="me-legend-label">{d.label}</span>
+            <span className="me-legend-value">{d.value.toLocaleString()}</span>
+          </li>
+        ))}
+      </ul>
     </div>
-    <div class="metric-card ok">
-      <div class="metric-label">Online</div>
-      <div class="metric-value" id="mOk">—</div>
-      <div class="metric-sub">conectados</div>
-    </div>
-    <div class="metric-card offline">
-      <div class="metric-label">Offline</div>
-      <div class="metric-value" id="mOffline">—</div>
-      <div class="metric-sub">sin conexión</div>
-    </div>
-    <div class="metric-card error">
-      <div class="metric-label">Con advertencia</div>
-      <div class="metric-value" id="mError">—</div>
-      <div class="metric-sub">panel apagado</div>
-    </div>
-    <div class="metric-card nosignal">
-      <div class="metric-label">Sin señal &gt;90 min</div>
-      <div class="metric-value" id="mNoSignal">—</div>
-      <div class="metric-sub">sin respuesta</div>
-    </div>
-  </div>
+  );
+}
 
-  <div class="avail-bar">
-    <div class="avail-header">
-      <span class="avail-label">Disponibilidad de red</span>
-      <span class="avail-pct" id="availPct">—</span>
+// ──────────────────────────────────────────────────────────────
+// Top white branding bar (with server selector)
+// ──────────────────────────────────────────────────────────────
+function BrandBar({ online=0, offline=0, total=0, serverKey, setServerKey, loading, onRefresh }) {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const pad = n => String(n).padStart(2, '0');
+  const clock = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const date  = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+
+  const SRV_OPTS = [
+    { key: 'bosque',     label: 'Bosque' },
+    { key: 'callecalle', label: 'Callecalle' },
+    { key: 'both',       label: 'Ambos' },
+  ];
+
+  return (
+    <div className="me-brandbar">
+      <div className="me-brand">
+        <div className="me-brand-mark">
+          <svg width="32" height="32" viewBox="0 0 32 32">
+            <circle cx="11" cy="11" r="6" fill="none" stroke="#f5a623" strokeWidth="2.5"/>
+            <circle cx="21" cy="11" r="6" fill="none" stroke="#4ade80" strokeWidth="2.5"/>
+            <circle cx="11" cy="21" r="6" fill="none" stroke="#3b9bf2" strokeWidth="2.5"/>
+            <circle cx="21" cy="21" r="6" fill="none" stroke="#9b6dff" strokeWidth="2.5"/>
+          </svg>
+        </div>
+        <div className="me-brand-text">
+          <div className="me-brand-co">NetWatch</div>
+          <div className="me-brand-product">MagicInfo Display Monitor</div>
+        </div>
+      </div>
+
+      <div className="me-brandbar-center">
+        <div style={{display:'flex',gap:4,marginRight:16}}>
+          {SRV_OPTS.map(o => (
+            <button key={o.key} onClick={() => setServerKey(o.key)}
+              style={{padding:'3px 11px',fontSize:11,fontWeight:600,borderRadius:20,border:'1.5px solid',cursor:'pointer',
+                background: serverKey===o.key ? '#2d3540' : 'transparent',
+                color: serverKey===o.key ? '#fff' : '#555',
+                borderColor: serverKey===o.key ? '#2d3540' : '#d0d5dd'}}
+            >{o.label}</button>
+          ))}
+        </div>
+        <div className="me-bb-stat">
+          <span className="me-bb-stat-label">Total</span>
+          <span className="me-bb-stat-val">{String(total).padStart(2,'0')}</span>
+        </div>
+        <div className="me-bb-stat me-bb-stat-ok">
+          <span className="me-bb-stat-dot" />
+          <span className="me-bb-stat-label">Online</span>
+          <span className="me-bb-stat-val">{String(online).padStart(2,'0')}</span>
+        </div>
+        <div className="me-bb-stat me-bb-stat-crit">
+          <span className="me-bb-stat-dot" />
+          <span className="me-bb-stat-label">Offline</span>
+          <span className="me-bb-stat-val">{String(offline).padStart(2,'0')}</span>
+        </div>
+      </div>
+
+      <div className="me-brandbar-right">
+        <button onClick={onRefresh} disabled={loading}
+          style={{fontSize:11,padding:'4px 10px',borderRadius:6,border:'1px solid #e4e7ec',background:'#f8f9fb',cursor:'pointer',marginRight:12,opacity:loading?0.5:1}}>
+          {loading ? '↻ Cargando…' : '↻ Actualizar'}
+        </button>
+        <div className="me-clock">
+          <span className="me-clock-date">{date}</span>
+          <span className="me-clock-time">{clock}</span>
+        </div>
+        <div className="me-profile">
+          <div className="me-avatar">N</div>
+          <div className="me-profile-text">
+            <div className="me-profile-name">NOC Admin</div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="bar-track">
-      <div class="bar-fill" id="availBar" style="width:0%"></div>
+  );
+}
+
+
+// ──────────────────────────────────────────────────────────────
+// Dark nav bar
+// ──────────────────────────────────────────────────────────────
+function NavBar({ active, setActive, search, setSearch }) {
+  const tabs = ['Home', 'Screens', 'Reports'];
+  return (
+    <nav className="me-nav">
+      <ul className="me-nav-tabs">
+        {tabs.map(t => (
+          <li key={t}>
+            <button
+              type="button"
+              className={`me-tab ${active === t ? 'active' : ''}`}
+              onClick={() => setActive(t)}
+            >{t}</button>
+          </li>
+        ))}
+      </ul>
+      <div className="me-nav-right">
+        <div className="me-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+          </svg>
+          <input placeholder="name, IP, MAC, location…" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// KPI strip
+// ──────────────────────────────────────────────────────────────
+function KpiStrip({ screens }) {
+  const total = screens.length;
+  const online = screens.filter(s => s.state === 'online').length;
+  const offline = screens.filter(s => s.state === 'offline').length;
+  const warning = screens.filter(s => s.state === 'warning').length;
+  // simulated "scheduled to deploy"
+  const pending = 4;
+
+  const cards = [
+    { value: total,   label: 'Total Screens' },
+    { value: online,  label: 'Online' },
+    { value: offline, label: 'Offline' },
+    { value: warning, label: 'Warnings' },
+    { value: pending, label: 'Pending Deploys' },
+  ];
+  return (
+    <section className="me-kpi-strip">
+      {cards.map((c, i) => (
+        <div key={i} className="me-kpi">
+          <div className="me-kpi-value">{c.value.toLocaleString()}</div>
+          <div className="me-kpi-label">{c.label}</div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Card frame (matches MDM Plus chrome — drag handle + title + actions)
+// ──────────────────────────────────────────────────────────────
+function Card({ title, children, action, headerRight }) {
+  return (
+    <section className="me-card">
+      <header className="me-card-head">
+        <div className="me-card-title">
+          <span className="me-drag-handle" aria-hidden="true">
+            <span/><span/><span/><span/><span/><span/>
+          </span>
+          <span>{title}</span>
+        </div>
+        <div className="me-card-actions">
+          {headerRight}
+          {action}
+        </div>
+      </header>
+      <div className="me-card-body">{children}</div>
+    </section>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Activity feed
+// ──────────────────────────────────────────────────────────────
+const FEED_META = {
+  online:  { cls: 'ok',   icon: '↑',  label: 'CONNECTED' },
+  offline: { cls: 'crit', icon: '↓',  label: 'DISCONNECTED' },
+  warning: { cls: 'warn', icon: '!',  label: 'WARNING' },
+  deploy:  { cls: 'info', icon: '⇪',  label: 'DEPLOY' },
+  config:  { cls: 'mute', icon: '⚙',  label: 'CONFIG' },
+};
+
+function ActivityFeed({ feed, screens }) {
+  return (
+    <section className="me-activity">
+      <header className="me-card-head">
+        <div className="me-card-title">
+          <span>Recent Activity Feed</span>
+        </div>
+        <button className="me-card-iconbtn" type="button" aria-label="Refresh">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>
+          </svg>
+        </button>
+      </header>
+      <ul className="me-activity-list">
+        {feed.map(f => {
+          const meta = FEED_META[f.kind];
+          const screen = f.screenId ? screens.find(s => s.id === f.screenId) : null;
+          return (
+            <li key={f.id} className={`me-activity-item ${f.isNew ? 'is-new' : ''}`}>
+              <div className={`me-activity-icon me-aic-${meta.cls}`}>{meta.icon}</div>
+              <div className="me-activity-body">
+                <div className="me-activity-msg">
+                  {screen && <span className="me-activity-screen">{screen.name}</span>}
+                  {screen && f.group && ' '}
+                  {f.group && !screen && <span className="me-activity-screen">{f.group}</span>}
+                  <span className="me-activity-text"> {f.msg}</span>
+                </div>
+                <div className="me-activity-meta">
+                  <span className={`me-activity-tag me-tag-${meta.cls}`}>{meta.label}</span>
+                  <span className="me-activity-time">{fmtAge(f.tMin)}</span>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Screen list (small table inside a card — replaces detail grid)
+// ──────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────
+// Screen — Tile layout (card grid)
+// ──────────────────────────────────────────────────────────────
+function ScreenTile({ screen }) {
+  const typeLabel = ({ indoor: 'INDOOR', outdoor: 'OUTDOOR', videowall: 'VIDEO WALL', kiosk: 'KIOSK' })[screen.kind] || screen.kind.toUpperCase();
+  const sinceLabel = screen.state === 'offline'
+    ? `down ${Math.round(screen.sinceMin)}m`
+    : 'stable';
+  return (
+    <div className={`me-tile me-tile-${screen.state}`}>
+      <div className="me-tile-row1">
+        <span className="me-tile-type">{typeLabel}</span>
+        <span className={`me-tile-badge me-state-${screen.state}`}>
+          <span className="me-state-dot" />
+          {screen.state === 'online' ? 'ONLINE' : 'OFFLINE'}
+        </span>
+      </div>
+      <div className="me-tile-name">{screen.name}</div>
+      <div className="me-tile-id">
+        <span className="me-tile-ip">{screen.ip}</span>
+        <span className="me-tile-sep">·</span>
+        <span className="me-tile-mac">{screen.mac}</span>
+      </div>
+      <div className="me-tile-meta">
+        <span className="me-tile-loc">{screen.loc}</span>
+        <span className="me-tile-model">{screen.model}</span>
+      </div>
+      <div className="me-tile-foot">
+        <span className="me-tile-play" title={screen.play}>{screen.state === 'offline' ? '—' : screen.play}</span>
+        <span className="me-tile-since">{sinceLabel}</span>
+      </div>
     </div>
-  </div>
+  );
+}
 
-  <div class="section-header">
-    <span class="section-title">Pantallas</span>
-    <span class="badge badge-muted" id="filterInfo">—</span>
-  </div>
-  <div class="filter-row">
-    <button class="filter-btn active" onclick="setFilter('all', this)">Todas</button>
-    <button class="filter-btn" onclick="setFilter('offline', this)">Offline</button>
-    <button class="filter-btn" onclick="setFilter('ok', this)">Operativas</button>
-    <button class="filter-btn" onclick="setFilter('error', this)">Con fallas</button>
-    <input class="search-input" type="text" placeholder="Buscar pantalla..." id="searchInput" oninput="renderDevices()">
-  </div>
-  <div id="cacheNote"></div>
-  <div class="device-grid" id="deviceGrid">
-    <div class="empty" style="grid-column:1/-1">Cargando pantallas...</div>
-  </div>
-
-  <div class="section-header">
-    <span class="section-title">Historial de alertas</span>
-    <div style="display:flex;gap:8px;align-items:center">
-      <span class="badge badge-danger" id="alertCount">0 alertas</span>
-      <button class="clear-btn" onclick="clearAlerts()">Limpiar</button>
+// ──────────────────────────────────────────────────────────────
+// Screen — Roster layout (icon + meta, one row each)
+// ──────────────────────────────────────────────────────────────
+function ScreenRoster({ screen }) {
+  const stateLabel = screen.state === 'online' ? 'Online'
+    : `Offline · ${Math.round(screen.sinceMin)}m`;
+  return (
+    <div className={`me-roster-row me-roster-${screen.state}`}>
+      <div className="me-roster-icon">
+        <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="6" width="26" height="17" rx="1.5"/>
+          <line x1="11" y1="28" x2="21" y2="28"/>
+          <line x1="16" y1="23" x2="16" y2="28"/>
+        </svg>
+        <span className={`me-roster-dot me-state-${screen.state}`}><span className="me-state-dot" /></span>
+      </div>
+      <div className="me-roster-main">
+        <div className="me-roster-name">{screen.name}</div>
+        <div className="me-roster-sub">{screen.loc} <span className="me-roster-sep">·</span> {screen.model} <span className="me-roster-sep">·</span> <span className="me-roster-ip">{screen.ip}</span></div>
+      </div>
+      <div className="me-roster-meta">
+        <div className="me-roster-play">{screen.play}</div>
+        <div className={`me-roster-status me-state-${screen.state}`}>{stateLabel}</div>
+      </div>
     </div>
-  </div>
-  <div class="alerts-list" id="alertsList">
-    <div class="empty">Sin alertas registradas.</div>
-  </div>
+  );
+}
 
-</div>
+// ──────────────────────────────────────────────────────────────
+// Inventory — switches layout based on tweak
+// ──────────────────────────────────────────────────────────────
+function ScreenInventory({ screens, search, layout }) {
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = q
+      ? screens.filter(s =>
+          s.name.toLowerCase().includes(q) ||
+          s.ip.includes(q) ||
+          (s.mac && s.mac.toLowerCase().includes(q)) ||
+          s.loc.toLowerCase().includes(q) ||
+          s.model.toLowerCase().includes(q))
+      : screens;
+    return [...list].sort((a, b) => {
+      const order = { offline: 0, online: 1 };
+      if (order[a.state] !== order[b.state]) return order[a.state] - order[b.state];
+      return a.name.localeCompare(b.name);
+    });
+  }, [screens, search]);
 
-<script>
-let allDevices = {};   // { bosque: [], callecalle: [] }
-let allAlerts  = [];
-let currentFilter = 'all';
-let currentServer = 'both';
-let UMBRAL_MIN = 90;
-let showBoth = true;
+  const rowHeight = 41; // px per row
+  const bodyMaxH = 12 * rowHeight;
 
+  if (layout === 'tiles') {
+    return (
+      <div className="me-tiles-wrap">
+        <div className="me-tiles-grid">
+          {filtered.map(s => <ScreenTile key={s.id} screen={s} />)}
+        </div>
+        {filtered.length === 0 && <div className="me-screens-empty">No screens match "{search}"</div>}
+      </div>
+    );
+  }
+
+  if (layout === 'roster') {
+    return (
+      <div className="me-roster">
+        {filtered.map(s => <ScreenRoster key={s.id} screen={s} />)}
+        {filtered.length === 0 && <div className="me-screens-empty">No screens match "{search}"</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="me-screens-table">
+      <div className="me-screens-head">
+        <span>Screen</span>
+        <span>Location</span>
+        <span>Model</span>
+        <span>IP</span>
+        <span>MAC</span>
+        <span>Playing</span>
+        <span>Status</span>
+      </div>
+      <div className="me-screens-body" style={{ maxHeight: bodyMaxH }}>
+        {filtered.map(s => (
+          <div key={s.id} className={`me-screen-row me-row-${s.state}`}>
+            <span className="me-screen-name">{s.name}</span>
+            <span className="me-screen-loc">{s.loc}</span>
+            <span className="me-screen-model">{s.model}</span>
+            <span className="me-screen-ip">{s.ip}</span>
+            <span className="me-screen-mac">{s.mac}</span>
+            <span className="me-screen-play">{s.play}</span>
+            <span className={`me-screen-state me-state-${s.state}`}>
+              <span className="me-state-dot" />
+              {s.state === 'online' ? 'Online' : `Offline ${Math.round(s.sinceMin)}m`}
+            </span>
+          </div>
+        ))}
+        {filtered.length === 0 && (
+          <div className="me-screens-empty">No screens match "{search}"</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Tweak defaults — expressive controls that reshape the feel
+// ──────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────
+// API helpers
+// ──────────────────────────────────────────────────────────────
 function isOnline(d) {
   return d.power === true || d.power === 'true' ||
          d.panelStatus === true || d.panelStatus === 'true';
 }
-function hasError(d) {
-  return isOnline(d) && d.iconErrorHw && d.iconErrorHw > 0;
-}
-function isNoSignal(d) {
-  // devices that have been offline >90min — approximated by lastConnectionTime
-  if (isOnline(d)) return false;
-  if (!d.lastConnectionTime) return false;
-  const last = new Date(d.lastConnectionTime);
-  return (Date.now() - last.getTime()) > UMBRAL_MIN * 60 * 1000;
+
+function deviceToScreen(d, serverKey) {
+  return {
+    id:       d.deviceId || d.macAddress || String(Math.random()),
+    name:     d.deviceName || d.deviceId || '—',
+    loc:      d.groupName  || 'Sin grupo',
+    model:    d.deviceModelName || '—',
+    kind:     'indoor',
+    ip:       d.ipAddress || '—',
+    mac:      d.macAddress || '—',
+    res:      '—',
+    state:    isOnline(d) ? 'online' : 'offline',
+    sinceMin: 0,
+    play:     '—',
+    server:   serverKey,
+  };
 }
 
-function getActiveDevices() {
-  if (currentServer === 'both') {
-    return [
-      ...(allDevices.bosque || []).map(d => ({ ...d, _server: 'bosque' })),
-      ...(allDevices.callecalle || []).map(d => ({ ...d, _server: 'callecalle' })),
-    ];
+function alertToFeed(a, idx) {
+  return {
+    id:         a.id || ('a' + idx),
+    kind:       a.type === 'recovery' ? 'online' : 'offline',
+    screenId:   null,
+    deviceName: a.name,
+    group:      a.group,
+    msg:        a.msg,
+    tMin:       a.ts ? Math.round((Date.now() - a.ts) / 60000) : 0,
+    isNew:      false,
+    server:     a.server,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────
+// Root
+// ──────────────────────────────────────────────────────────────
+function App() {
+  const [theme,   setTheme]   = useState('daylight');
+  const [density, setDensity] = useState('standard');
+  const [layout,  setLayout]  = useState('tiles');
+  const t = { theme, density, layout };
+  const setTweak = (k, v) => {
+    if (k === 'theme')   setTheme(v);
+    if (k === 'density') setDensity(v);
+    if (k === 'layout')  setLayout(v);
+  };
+
+  const [serverKey, setServerKey] = useState('both');
+  const [screens,   setScreens]   = useState([]);
+  const [feed,      setFeed]      = useState([]);
+  const [active,    setActive]    = useState('Home');
+  const [search,    setSearch]    = useState('');
+  const [loading,   setLoading]   = useState(true);
+
+  async function loadData(srv) {
+    setLoading(true);
+    try {
+      const key = srv || serverKey;
+      const [devRes, alertRes] = await Promise.all([
+        fetch('/api/devices?server=' + key),
+        fetch('/api/alerts?server='  + key),
+      ]);
+      const devData   = await devRes.json();
+      const alertData = await alertRes.json();
+
+      if (devData.ok && devData.servers) {
+        const all = [];
+        Object.entries(devData.servers).forEach(([k, srv]) => {
+          if (srv.ok && srv.devices) {
+            srv.devices.forEach(d => all.push(deviceToScreen(d, k)));
+          }
+        });
+        setScreens(all);
+      }
+      if (alertData.ok && alertData.alerts) {
+        setFeed(alertData.alerts.map((a, i) => alertToFeed(a, i)));
+      }
+    } catch(e) { console.error('API error:', e); }
+    setLoading(false);
   }
-  return (allDevices[currentServer] || []).map(d => ({ ...d, _server: currentServer }));
+
+  useEffect(() => {
+    loadData(serverKey);
+    const iv = setInterval(() => loadData(serverKey), 5 * 60 * 1000);
+    return () => clearInterval(iv);
+  }, [serverKey]);
+
+  const total   = screens.length;
+  const online  = screens.filter(s => s.state === 'online').length;
+  const offline = screens.filter(s => s.state === 'offline').length;
+  const offlineScreens = screens.filter(s => s.state === 'offline');
+
+  const rootCls = `me-root me-theme-${t.theme} me-density-${t.density} me-layout-${t.layout}`;
+
+  return (
+    <div className={rootCls}>
+      <BrandBar
+        online={online} offline={offline} total={total}
+        serverKey={serverKey} setServerKey={setServerKey}
+        loading={loading} onRefresh={() => loadData(serverKey)}
+      />
+      <NavBar active={active} setActive={setActive} search={search} setSearch={setSearch} />
+
+      {active === 'Home' && (
+        <HomeView offlineScreens={offlineScreens} feed={feed} screens={screens} />
+      )}
+      {active === 'Screens' && (
+        <ScreensView screens={screens} search={search} layout={t.layout} online={online} offline={offline} total={total} />
+      )}
+      {active === 'Reports' && (
+        <ReportsView screens={screens} feed={feed} online={online} offline={offline} total={total} />
+      )}
+
+      <TweaksPanelSimple theme={t.theme} density={t.density} layout={t.layout} setTweak={setTweak} />
+    </div>
+  );
 }
 
-function setServer(key, btn) {
-  currentServer = key;
-  document.querySelectorAll('.srv-tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  updateMetrics();
-  renderDevices();
-  renderAlerts();
+function TweaksPanelSimple({ theme, density, layout, setTweak }) {
+  const [open, setOpen] = useState(false);
+  const btnStyle = {position:'fixed',bottom:16,right:16,zIndex:9999,background:'#2d3540',color:'#fff',border:'none',borderRadius:8,padding:'7px 13px',fontSize:12,cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,.3)'};
+  if (!open) return <button onClick={() => setOpen(true)} style={btnStyle}>⚙ Apariencia</button>;
+  return (
+    <div style={{position:'fixed',bottom:16,right:16,zIndex:9999,background:'#fff',border:'1px solid #e4e7ec',borderRadius:12,padding:16,width:220,boxShadow:'0 4px 20px rgba(0,0,0,.15)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <strong style={{fontSize:12}}>Apariencia</strong>
+        <button onClick={() => setOpen(false)} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,lineHeight:1}}>×</button>
+      </div>
+      {[
+        { label:'Tema',     key:'theme',   options:['daylight','bunker','print'],      val: theme   },
+        { label:'Densidad', key:'density', options:['roomy','standard','dense'],       val: density },
+        { label:'Layout',   key:'layout',  options:['table','tiles','roster'],         val: layout  },
+      ].map(({label,key,options,val}) => (
+        <div key={key} style={{marginBottom:10}}>
+          <div style={{fontSize:11,color:'#666',marginBottom:4}}>{label}</div>
+          <div style={{display:'flex',gap:4}}>
+            {options.map(o => (
+              <button key={o} onClick={() => setTweak(key,o)}
+                style={{flex:1,padding:'4px 0',fontSize:10,border:'1px solid',borderRadius:5,cursor:'pointer',
+                  background:val===o?'#2d3540':'#f8f9fb',
+                  color:val===o?'#fff':'#444',
+                  borderColor:val===o?'#2d3540':'#e4e7ec'}}
+              >{o}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
-async function loadAll() {
-  const btn = document.getElementById('refreshBtn');
-  btn.disabled = true; btn.textContent = '↻ Cargando...';
-  document.getElementById('liveDot').style.background = '#f59e0b';
 
-  try {
-    const [devRes, alertRes] = await Promise.all([
-      fetch('/api/devices?server=both'),
-      fetch('/api/alerts?server=both')
-    ]);
-    const devData = await devRes.json();
-    const alertData = await alertRes.json();
-    if (!devData.ok) throw new Error(devData.error);
+// ──────────────────────────────────────────────────────────────
+// Home view — live operations: offline tiles + event log
+// ──────────────────────────────────────────────────────────────
+function HomeView({ offlineScreens, feed, screens }) {
+  // Only show events for actual disconnect/reconnect (not config/deploy)
+  const liveFeed = useMemo(() =>
+    feed.filter(f => f.kind === 'online' || f.kind === 'offline'),
+    [feed]
+  );
 
-    // Store per-server
-    const servers = devData.servers || {};
-    for (const [key, srv] of Object.entries(servers)) {
-      if (srv.ok) allDevices[key] = srv.devices || [];
-    }
-    allAlerts = alertData.alerts || [];
-    if (devData.umbralMin) UMBRAL_MIN = devData.umbralMin;
+  return (
+    <div className="me-view me-view-home">
+      <div className="me-home-grid">
+        <Card
+          title={`Currently Offline · ${offlineScreens.length}`}
+          headerRight={offlineScreens.length > 0 && (
+            <span className="me-card-stat me-card-stat-crit">
+              <span className="me-state-dot" />
+              REQUIRES ATTENTION
+            </span>
+          )}
+        >
+          {offlineScreens.length === 0 ? (
+            <div className="me-home-allclear">
+              <div className="me-home-allclear-dot" />
+              <div>
+                <div className="me-home-allclear-title">All screens online</div>
+                <div className="me-home-allclear-sub">No connectivity issues detected.</div>
+              </div>
+            </div>
+          ) : (
+            <div className="me-tiles-wrap">
+              <div className="me-tiles-grid">
+                {offlineScreens.map(s => <ScreenTile key={s.id} screen={s} />)}
+              </div>
+            </div>
+          )}
+        </Card>
 
-    updateMetrics();
-    renderDevices();
-    renderAlerts();
+        <Card
+          title="Live Event Log"
+          headerRight={<span className="me-log-pulse"><span className="me-log-pulse-dot" /> STREAMING</span>}
+        >
+          <EventLog feed={liveFeed} screens={screens} />
+        </Card>
+      </div>
+    </div>
+  );
+}
 
-    // Cache note
-    const cacheNotes = Object.entries(servers)
-      .filter(([, s]) => s.ok && s.cached)
-      .map(([k, s]) => `${s.label}: caché ${s.cacheAge}s`)
-      .join(' · ');
-    const cacheEl = document.getElementById('cacheNote');
-    cacheEl.innerHTML = cacheNotes
-      ? `<span class="cache-note">${cacheNotes}</span>`
-      : '';
+// ──────────────────────────────────────────────────────────────
+// Screens view — overview donut + full inventory
+// ──────────────────────────────────────────────────────────────
+function ScreensView({ screens, search, layout, online, offline, total }) {
+  const statusData = useMemo(() => ([
+    { label: 'Online',  value: online,  color: C.online },
+    { label: 'Offline', value: offline, color: C.offline },
+  ]), [online, offline]);
 
-    const now = new Date().toLocaleTimeString('es-CL', {
-      hour:'2-digit', minute:'2-digit', second:'2-digit'
+  const locationData = useMemo(() => {
+    const counts = {};
+    screens.forEach(s => {
+      const top = s.loc.split('·')[0].trim();
+      counts[top] = (counts[top] || 0) + 1;
     });
-    document.getElementById('lastUpdate').textContent = 'sync ' + now;
-    document.getElementById('liveDot').style.background = '#10b981';
-  } catch(e) {
-    document.getElementById('liveDot').style.background = '#ef4444';
-    document.getElementById('lastUpdate').textContent = 'Error al cargar';
-    console.error(e);
-  }
+    const palette = [C.warn, C.online, C.blue, C.purple, C.teal];
+    return Object.entries(counts).map(([k, v], i) => ({ label: k, value: v, color: palette[i % palette.length] }));
+  }, [screens]);
 
-  btn.disabled = false; btn.textContent = '↻ Actualizar';
-}
+  return (
+    <div className="me-view me-view-screens">
+      <div className="me-screens-grid">
+        <Card title="Connection Status">
+          <div className="me-card-pad">
+            <Donut
+              data={statusData}
+              total={total}
+              centerLabel={`${Math.round((online / total) * 100)}%`}
+              centerSub="available"
+            />
+          </div>
+        </Card>
 
-function updateMetrics() {
-  const devices = getActiveDevices();
-  const total = devices.length;
-  const ok = devices.filter(d => isOnline(d) && !hasError(d)).length;
-  const offline = devices.filter(d => !isOnline(d)).length;
-  const error = devices.filter(d => hasError(d)).length;
-  const noSignal = devices.filter(d => isNoSignal(d)).length;
-  const pct = total > 0 ? Math.round((ok / total) * 100) : 0;
-  const color = pct >= 90 ? 'var(--ok)' : pct >= 70 ? 'var(--warn)' : 'var(--danger)';
+        <Card title="By Location">
+          <div className="me-card-pad">
+            <Donut
+              data={locationData}
+              total={total}
+              centerLabel={String(locationData.length)}
+              centerSub="sites"
+            />
+          </div>
+        </Card>
 
-  document.getElementById('mTotal').textContent = total;
-  document.getElementById('mOk').textContent = ok;
-  document.getElementById('mOffline').textContent = offline;
-  document.getElementById('mError').textContent = error;
-  document.getElementById('mNoSignal').textContent = noSignal;
-  document.getElementById('availPct').textContent = pct + '%';
-  document.getElementById('availPct').style.color = color;
-  document.getElementById('availBar').style.width = pct + '%';
-  document.getElementById('availBar').style.background = color;
-}
-
-function setFilter(f, btn) {
-  currentFilter = f;
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderDevices();
-}
-
-function renderDevices() {
-  const search = (document.getElementById('searchInput').value || '').toLowerCase();
-  let devices = getActiveDevices();
-
-  devices = devices.filter(d => {
-    const name = (d.deviceName || '').toLowerCase();
-    const group = (d.groupName || '').toLowerCase();
-    const ip = (d.ipAddress || '').toLowerCase();
-    return !search || name.includes(search) || group.includes(search) || ip.includes(search);
-  }).filter(d => {
-    if (currentFilter === 'offline') return !isOnline(d);
-    if (currentFilter === 'ok') return isOnline(d) && !hasError(d);
-    if (currentFilter === 'error') return hasError(d);
-    return true;
-  });
-
-  devices.sort((a, b) => {
-    const score = d => !isOnline(d) ? 0 : hasError(d) ? 1 : 2;
-    return score(a) - score(b);
-  });
-
-  const total = getActiveDevices().length;
-  document.getElementById('filterInfo').textContent = `${devices.length} de ${total}`;
-
-  if (!devices.length) {
-    document.getElementById('deviceGrid').innerHTML =
-      '<div class="empty" style="grid-column:1/-1">Sin pantallas en esta categoría.</div>';
-    return;
-  }
-
-  document.getElementById('deviceGrid').innerHTML = devices.map(d => {
-    const online = isOnline(d);
-    const error = hasError(d);
-    let cardClass, dotClass, statusClass, statusText;
-    if (!online) { cardClass='offline'; dotClass='offline'; statusClass='offline'; statusText='Offline'; }
-    else if (error) { cardClass='warn'; dotClass='warn'; statusClass='warn'; statusText='Falla HW'; }
-    else { cardClass='ok'; dotClass='ok'; statusClass='ok'; statusText='OK'; }
-
-    const serverBadge = currentServer === 'both'
-      ? `<span class="srv-badge ${d._server}">${d._server === 'bosque' ? 'Bosque' : 'Callecalle'}</span>`
-      : '';
-
-    return `<div class="device-card ${cardClass}">
-      <div class="status-dot ${dotClass}"></div>
-      <div class="device-info">
-        <div class="device-name">${d.deviceName || d.deviceId || 'Sin nombre'}</div>
-        <div class="device-group">${d.groupName || 'Sin grupo'}</div>
-        <div class="device-ip">${d.ipAddress || '—'}${d.deviceModelName ? ' · ' + d.deviceModelName : ''}</div>
+        <Card title={`Screen Inventory · ${total} displays`} headerRight={
+          <div className="me-card-stats">
+            <span className="me-card-stat me-card-stat-ok"><span className="me-state-dot"/> {online} online</span>
+            <span className="me-card-stat me-card-stat-crit"><span className="me-state-dot"/> {offline} offline</span>
+          </div>
+        }>
+          <ScreenInventory screens={screens} search={search} layout={layout} />
+        </Card>
       </div>
-      <div class="card-right">
-        <span class="device-status ${statusClass}">${statusText}</span>
-        ${serverBadge}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Reports view — quick stats summary
+// ──────────────────────────────────────────────────────────────
+function ReportsView({ screens, feed, online, offline, total }) {
+  const byKind = useMemo(() => {
+    const counts = {};
+    screens.forEach(s => {
+      if (!counts[s.kind]) counts[s.kind] = { online: 0, offline: 0, total: 0 };
+      counts[s.kind][s.state]++;
+      counts[s.kind].total++;
+    });
+    return counts;
+  }, [screens]);
+
+  const byLoc = useMemo(() => {
+    const counts = {};
+    screens.forEach(s => {
+      const top = s.loc.split('·')[0].trim();
+      if (!counts[top]) counts[top] = { online: 0, offline: 0, total: 0 };
+      counts[top][s.state]++;
+      counts[top].total++;
+    });
+    return counts;
+  }, [screens]);
+
+  const disconnects24h = feed.filter(f => f.kind === 'offline').length;
+  const reconnects24h  = feed.filter(f => f.kind === 'online').length;
+  const availability   = ((online / total) * 100).toFixed(1);
+
+  return (
+    <div className="me-view me-view-reports">
+      <div className="me-reports-stats">
+        <div className="me-stat-block">
+          <div className="me-stat-label">Availability (now)</div>
+          <div className="me-stat-value me-stat-ok">{availability}%</div>
+          <div className="me-stat-hint">{online} of {total} screens responding</div>
+        </div>
+        <div className="me-stat-block">
+          <div className="me-stat-label">Disconnects (24h)</div>
+          <div className="me-stat-value me-stat-crit">{disconnects24h}</div>
+          <div className="me-stat-hint">across all locations</div>
+        </div>
+        <div className="me-stat-block">
+          <div className="me-stat-label">Reconnects (24h)</div>
+          <div className="me-stat-value me-stat-ok">{reconnects24h}</div>
+          <div className="me-stat-hint">automatic recoveries</div>
+        </div>
+        <div className="me-stat-block">
+          <div className="me-stat-label">Total fleet</div>
+          <div className="me-stat-value">{total}</div>
+          <div className="me-stat-hint">monitored displays</div>
+        </div>
       </div>
-    </div>`;
-  }).join('');
+
+      <div className="me-reports-grid">
+        <Card title="By Type">
+          <div className="me-rt-table">
+            <div className="me-rt-head"><span>Type</span><span>Online</span><span>Offline</span><span>Total</span></div>
+            {Object.entries(byKind).map(([k, v]) => (
+              <div key={k} className="me-rt-row">
+                <span className="me-rt-label">{({ indoor: 'Indoor', outdoor: 'Outdoor', videowall: 'Video Wall', kiosk: 'Kiosk' })[k] || k}</span>
+                <span className="me-rt-num me-stat-ok">{v.online}</span>
+                <span className="me-rt-num me-stat-crit">{v.offline}</span>
+                <span className="me-rt-num">{v.total}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="By Location">
+          <div className="me-rt-table">
+            <div className="me-rt-head"><span>Location</span><span>Online</span><span>Offline</span><span>Total</span></div>
+            {Object.entries(byLoc).map(([k, v]) => (
+              <div key={k} className="me-rt-row">
+                <span className="me-rt-label">{k}</span>
+                <span className="me-rt-num me-stat-ok">{v.online}</span>
+                <span className="me-rt-num me-stat-crit">{v.offline}</span>
+                <span className="me-rt-num">{v.total}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
 }
 
-function renderAlerts() {
-  const alerts = currentServer === 'both'
-    ? allAlerts
-    : allAlerts.filter(a => !a.server || a.server === currentServer);
-
-  document.getElementById('alertCount').textContent = alerts.length + ' alertas';
-
-  if (!alerts.length) {
-    document.getElementById('alertsList').innerHTML =
-      '<div class="empty">Sin alertas registradas.</div>';
-    return;
-  }
-
-  document.getElementById('alertsList').innerHTML = alerts.map(a => {
-    const srvBadge = a.server
-      ? `<span class="srv-badge ${a.server}" style="font-size:9px;margin-left:4px">${a.server === 'bosque' ? 'B' : 'CC'}</span>`
-      : '';
-    return `<div class="alert-row">
-      <span class="alert-time">${a.time}</span>
-      <div class="alert-dot" style="background:${a.type === 'recovery' ? 'var(--ok)' : 'var(--danger)'}"></div>
-      <span class="alert-msg">
-        <span class="alert-name">${a.name}</span>${srvBadge}
-        <span class="alert-group"> — ${a.group}</span>
-        — ${a.msg}
-      </span>
-    </div>`;
-  }).join('');
+// ──────────────────────────────────────────────────────────────
+// Event log — terminal-style stream of connection events
+// ──────────────────────────────────────────────────────────────
+function EventLog({ feed, screens }) {
+  return (
+    <div className="me-eventlog">
+      <div className="me-eventlog-body">
+        {feed.length === 0 && (
+          <div className="me-eventlog-empty">— no events —</div>
+        )}
+        {feed.map(f => {
+          const dev = f.screenId ? screens.find(s => s.id === f.screenId) : null;
+          const isDown = f.kind === 'offline';
+          return (
+            <div key={f.id} className={`me-eventlog-row me-eventlog-${f.kind} ${f.isNew ? 'is-new' : ''}`}>
+              <span className="me-evl-time">{fmtAge(f.tMin)}</span>
+              <span className={`me-evl-tag me-evl-tag-${isDown ? 'crit' : 'ok'}`}>
+                {isDown ? '↓ DOWN' : '↑ UP'}
+              </span>
+              <span className="me-evl-host">{dev ? dev.name : '—'}</span>
+              <span className="me-evl-meta">
+                {dev && <span className="me-evl-ip">{dev.ip}</span>}
+                {dev && <span className="me-evl-sep">·</span>}
+                {dev && <span className="me-evl-loc">{dev.loc}</span>}
+              </span>
+              <span className="me-evl-msg">{f.msg}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
-async function clearAlerts() {
-  if (!confirm('¿Limpiar el historial de alertas?')) return;
-  await fetch(`/api/alerts?server=${currentServer}`, { method: 'DELETE' });
-  if (currentServer === 'both') {
-    allAlerts = [];
-  } else {
-    allAlerts = allAlerts.filter(a => a.server && a.server !== currentServer);
-  }
-  renderAlerts();
-}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 
-loadAll();
-setInterval(loadAll, 5 * 60 * 1000);
 </script>
 </body>
 </html>
