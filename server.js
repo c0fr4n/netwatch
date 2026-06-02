@@ -2,8 +2,21 @@ const express = require("express");
 const axios = require("axios");
 const https = require("https");
 const path = require("path");
+const fs = require("fs");
 const { createClient } = require("redis");
 require("dotenv").config();
+
+// ─── Lista de exclusión Bosque ────────────────────────────────────────────────
+const _noConsiderarRaw = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(__dirname, "config", "no-considerar-bosque.json"), "utf8"));
+  } catch { return { names: [], macs: [] }; }
+})();
+const NO_CONSIDERAR_BOSQUE = {
+  names: new Set(_noConsiderarRaw.names.map(n => n.toLowerCase())),
+  macs:  new Set(_noConsiderarRaw.macs.map(m => m.toLowerCase())),
+};
+console.log(`[Config] Bosque exclusiones: ${NO_CONSIDERAR_BOSQUE.names.size} dispositivos cargados`);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -68,9 +81,18 @@ async function saveToRedis(key, data) {
 }
 
 // ─── MagicINFO helpers ────────────────────────────────────────────────────────
-function shouldIgnoreDevice(device) {
+function shouldIgnoreDevice(device, serverKey) {
   const group = (device.groupName || device.group || "").toLowerCase();
-  return group.includes("no considerar");
+  if (group.includes("no considerar")) return true;
+
+  if (serverKey === "bosque") {
+    const name = (device.deviceName || "").toLowerCase();
+    const mac  = (device.macAddress || "").toLowerCase();
+    if (name && NO_CONSIDERAR_BOSQUE.names.has(name)) return true;
+    if (mac  && NO_CONSIDERAR_BOSQUE.macs.has(mac))   return true;
+  }
+
+  return false;
 }
 
 function isOnline(d) {
@@ -134,7 +156,7 @@ async function getAllDevices(serverKey, token) {
     page++;
   }
 
-  return allDevices.filter((d) => !shouldIgnoreDevice(d));
+  return allDevices.filter((d) => !shouldIgnoreDevice(d, serverKey));
 }
 
 // ─── Change detection ─────────────────────────────────────────────────────────
