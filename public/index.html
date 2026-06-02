@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetWatch — Monitor MagicINFO Arcoprime</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e17;
+  --surface: #111827;
+  --surface2: #1a2235;
+  --border: rgba(255,255,255,0.07);
+  --text: #e8edf5;
+  --muted: #64748b;
+  --ok: #10b981;
+  --ok-bg: rgba(16,185,129,0.1);
+  --warn: #f59e0b;
+  --warn-bg: rgba(245,158,11,0.1);
+  --danger: #ef4444;
+  --danger-bg: rgba(239,68,68,0.1);
+  --accent: #3b82f6;
+  --accent-bg: rgba(59,130,246,0.1);
+  --bosque: #8b5cf6;
+  --bosque-bg: rgba(139,92,246,0.1);
+  --callecalle: #06b6d4;
+  --callecalle-bg: rgba(6,182,212,0.1);
+  --mono: 'DM Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+/* ── Header ── */
+.header {
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 2rem;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0;
+  background: rgba(10,14,23,0.95); backdrop-filter: blur(12px); z-index: 100;
+  gap: 12px; flex-wrap: wrap;
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
+.logo-text { font-size: 14px; font-weight: 600; letter-spacing: .02em; }
+.logo-sub { font-size: 12px; color: var(--muted); }
+
+/* Server tabs */
+.server-tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+.srv-tab {
+  font-family: var(--mono); font-size: 11px; padding: 5px 14px;
+  border-radius: 5px; border: none; background: transparent;
+  cursor: pointer; transition: all .15s; color: var(--muted);
+}
+.srv-tab.active { background: var(--surface2); color: var(--text); }
+.srv-tab.bosque.active { color: var(--bosque); }
+.srv-tab.callecalle.active { color: var(--callecalle); }
+.srv-tab.both.active { color: var(--accent); }
+
+.header-right { display: flex; align-items: center; gap: 12px; }
+.last-update { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.refresh-btn {
+  font-family: var(--mono); font-size: 11px; padding: 6px 14px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text); cursor: pointer; transition: all .15s;
+}
+.refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+.refresh-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── Layout ── */
+.main { max-width: 1360px; margin: 0 auto; padding: 2rem; }
+
+/* ── Server tags on device cards ── */
+.srv-badge {
+  font-size: 9px; padding: 2px 7px; border-radius: 10px; font-family: var(--mono);
+  font-weight: 500; flex-shrink: 0; align-self: flex-start;
+}
+.srv-badge.bosque { background: var(--bosque-bg); color: var(--bosque); }
+.srv-badge.callecalle { background: var(--callecalle-bg); color: var(--callecalle); }
+
+/* ── Metrics ── */
+.metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 2rem; }
+.metric-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 1.25rem; position: relative; overflow: hidden;
+}
+.metric-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.metric-card.total::before { background: var(--accent); }
+.metric-card.ok::before { background: var(--ok); }
+.metric-card.offline::before { background: var(--warn); }
+.metric-card.error::before { background: var(--danger); }
+.metric-card.nosignal::before { background: var(--bosque); }
+.metric-label { font-size: 10px; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .06em; }
+.metric-value { font-size: 36px; font-weight: 600; line-height: 1; }
+.metric-card.total .metric-value { color: var(--accent); }
+.metric-card.ok .metric-value { color: var(--ok); }
+.metric-card.offline .metric-value { color: var(--warn); }
+.metric-card.error .metric-value { color: var(--danger); }
+.metric-card.nosignal .metric-value { color: var(--bosque); }
+.metric-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+/* ── Availability bar ── */
+.avail-bar { margin-bottom: 2rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
+.avail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.avail-label { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+.avail-pct { font-size: 22px; font-weight: 600; font-family: var(--mono); }
+.bar-track { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+
+/* ── Sections ── */
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px; }
+.section-title { font-size: 13px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-family: var(--mono); }
+.badge-danger { background: var(--danger-bg); color: var(--danger); }
+.badge-muted { background: var(--surface2); color: var(--muted); }
+
+.filter-row { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+.filter-btn { font-size: 11px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--muted); cursor: pointer; font-family: var(--mono); transition: all .15s; }
+.filter-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+.search-input {
+  padding: 5px 12px; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 20px; color: var(--text); font-family: var(--mono); font-size: 11px;
+  outline: none; width: 200px; transition: border-color .15s;
+}
+.search-input:focus { border-color: var(--accent); }
+
+/* ── Device grid ── */
+.device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin-bottom: 2rem; }
+.device-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 1rem;
+  display: flex; align-items: flex-start; gap: 10px; transition: border-color .15s;
+}
+.device-card:hover { border-color: rgba(255,255,255,0.15); }
+.device-card.offline { border-left: 2px solid var(--danger); }
+.device-card.ok { border-left: 2px solid var(--ok); }
+.device-card.warn { border-left: 2px solid var(--warn); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.status-dot.ok { background: var(--ok); }
+.status-dot.offline { background: var(--danger); animation: blink 1.5s infinite; }
+.status-dot.warn { background: var(--warn); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.device-info { flex: 1; min-width: 0; }
+.device-name { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-group { font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-ip { font-size: 10px; color: var(--muted); margin-top: 2px; font-family: var(--mono); }
+.card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.device-status { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-family: var(--mono); }
+.device-status.ok { background: var(--ok-bg); color: var(--ok); }
+.device-status.offline { background: var(--danger-bg); color: var(--danger); }
+.device-status.warn { background: var(--warn-bg); color: var(--warn); }
+
+/* ── Alerts ── */
+.alerts-list { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 2rem; }
+.alert-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.alert-row:last-child { border-bottom: none; }
+.alert-time { font-family: var(--mono); color: var(--muted); min-width: 100px; }
+.alert-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.alert-msg { flex: 1; }
+.alert-name { font-family: var(--mono); color: var(--accent); }
+.alert-group { color: var(--muted); font-size: 11px; }
+.clear-btn { font-size: 11px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 20px; background: transparent; color: var(--muted); cursor: pointer; font-family: var(--mono); transition: all .15s; }
+.clear-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+.empty { text-align: center; padding: 3rem; color: var(--muted); font-size: 13px; }
+.cache-note { font-size: 11px; color: var(--muted); font-family: var(--mono); background: var(--surface2); padding: 6px 14px; border-radius: 6px; display: inline-block; margin-bottom: 1rem; }
+
+@media (max-width: 900px) {
+  .metrics { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 600px) {
+  .main { padding: 1rem; }
+  .metrics { grid-template-columns: repeat(2, 1fr); }
+  .header { padding: 0.75rem 1rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-dot" id="liveDot"></div>
+    <span class="logo-text">NetWatch</span>
+    <span class="logo-sub" style="margin-left:4px">MagicINFO · Arcoprime</span>
+  </div>
+
+  <div class="server-tabs">
+    <button class="srv-tab bosque" onclick="setServer('bosque', this)">Bosque</button>
+    <button class="srv-tab callecalle" onclick="setServer('callecalle', this)">Callecalle</button>
+    <button class="srv-tab both active" onclick="setServer('both', this)">Ambos</button>
+  </div>
+
+  <div class="header-right">
+    <span class="last-update" id="lastUpdate">Cargando...</span>
+    <button class="refresh-btn" onclick="loadAll()" id="refreshBtn">↻ Actualizar</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="metrics">
+    <div class="metric-card total">
+      <div class="metric-label">Total</div>
+      <div class="metric-value" id="mTotal">—</div>
+      <div class="metric-sub">dispositivos</div>
+    </div>
+    <div class="metric-card ok">
+      <div class="metric-label">Online</div>
+      <div class="metric-value" id="mOk">—</div>
+      <div class="metric-sub">conectados</div>
+    </div>
+    <div class="metric-card offline">
+      <div class="metric-label">Offline</div>
+      <div class="metric-value" id="mOffline">—</div>
+      <div class="metric-sub">sin conexión</div>
+    </div>
+    <div class="metric-card error">
+      <div class="metric-label">Con advertencia</div>
+      <div class="metric-value" id="mError">—</div>
+      <div class="metric-sub">panel apagado</div>
+    </div>
+    <div class="metric-card nosignal">
+      <div class="metric-label">Sin señal &gt;90 min</div>
+      <div class="metric-value" id="mNoSignal">—</div>
+      <div class="metric-sub">sin respuesta</div>
+    </div>
+  </div>
+
+  <div class="avail-bar">
+    <div class="avail-header">
+      <span class="avail-label">Disponibilidad de red</span>
+      <span class="avail-pct" id="availPct">—</span>
+    </div>
+    <div class="bar-track">
+      <div class="bar-fill" id="availBar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <span class="section-title">Pantallas</span>
+    <span class="badge badge-muted" id="filterInfo">—</span>
+  </div>
+  <div class="filter-row">
+    <button class="filter-btn active" onclick="setFilter('all', this)">Todas</button>
+    <button class="filter-btn" onclick="setFilter('offline', this)">Offline</button>
+    <button class="filter-btn" onclick="setFilter('ok', this)">Operativas</button>
+    <button class="filter-btn" onclick="setFilter('error', this)">Con fallas</button>
+    <input class="search-input" type="text" placeholder="Buscar pantalla..." id="searchInput" oninput="renderDevices()">
+  </div>
+  <div id="cacheNote"></div>
+  <div class="device-grid" id="deviceGrid">
+    <div class="empty" style="grid-column:1/-1">Cargando pantallas...</div>
+  </div>
+
+  <div class="section-header">
+    <span class="section-title">Historial de alertas</span>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="badge badge-danger" id="alertCount">0 alertas</span>
+      <button class="clear-btn" onclick="clearAlerts()">Limpiar</button>
+    </div>
+  </div>
+  <div class="alerts-list" id="alertsList">
+    <div class="empty">Sin alertas registradas.</div>
+  </div>
+
+</div>
+
+<script>
+let allDevices = {};   // { bosque: [], callecalle: [] }
+let allAlerts  = [];
+let currentFilter = 'all';
+let currentServer = 'both';
+let UMBRAL_MIN = 90;
+let showBoth = true;
+
+function isOnline(d) {
+  return d.power === true || d.power === 'true' ||
+         d.panelStatus === true || d.panelStatus === 'true';
+}
+function hasError(d) {
+  return isOnline(d) && d.iconErrorHw && d.iconErrorHw > 0;
+}
+function isNoSignal(d) {
+  // devices that have been offline >90min — approximated by lastConnectionTime
+  if (isOnline(d)) return false;
+  if (!d.lastConnectionTime) return false;
+  const last = new Date(d.lastConnectionTime);
+  return (Date.now() - last.getTime()) > UMBRAL_MIN * 60 * 1000;
+}
+
+function getActiveDevices() {
+  if (currentServer === 'both') {
+    return [
+      ...(allDevices.bosque || []).map(d => ({ ...d, _server: 'bosque' })),
+      ...(allDevices.callecalle || []).map(d => ({ ...d, _server: 'callecalle' })),
+    ];
+  }
+  return (allDevices[currentServer] || []).map(d => ({ ...d, _server: currentServer }));
+}
+
+function setServer(key, btn) {
+  currentServer = key;
+  document.querySelectorAll('.srv-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updateMetrics();
+  renderDevices();
+  renderAlerts();
+}
+
+async function loadAll() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true; btn.textContent = '↻ Cargando...';
+  document.getElementById('liveDot').style.background = '#f59e0b';
+
+  try {
+    const [devRes, alertRes] = await Promise.all([
+      fetch('/api/devices?server=both'),
+      fetch('/api/alerts?server=both')
+    ]);
+    const devData = await devRes.json();
+    const alertData = await alertRes.json();
+    if (!devData.ok) throw new Error(devData.error);
+
+    // Store per-server
+    const servers = devData.servers || {};
+    for (const [key, srv] of Object.entries(servers)) {
+      if (srv.ok) allDevices[key] = srv.devices || [];
+    }
+    allAlerts = alertData.alerts || [];
+    if (devData.umbralMin) UMBRAL_MIN = devData.umbralMin;
+
+    updateMetrics();
+    renderDevices();
+    renderAlerts();
+
+    // Cache note
+    const cacheNotes = Object.entries(servers)
+      .filter(([, s]) => s.ok && s.cached)
+      .map(([k, s]) => `${s.label}: caché ${s.cacheAge}s`)
+      .join(' · ');
+    const cacheEl = document.getElementById('cacheNote');
+    cacheEl.innerHTML = cacheNotes
+      ? `<span class="cache-note">${cacheNotes}</span>`
+      : '';
+
+    const now = new Date().toLocaleTimeString('es-CL', {
+      hour:'2-digit', minute:'2-digit', second:'2-digit'
+    });
+    document.getElementById('lastUpdate').textContent = 'sync ' + now;
+    document.getElementById('liveDot').style.background = '#10b981';
+  } catch(e) {
+    document.getElementById('liveDot').style.background = '#ef4444';
+    document.getElementById('lastUpdate').textContent = 'Error al cargar';
+    console.error(e);
+  }
+
+  btn.disabled = false; btn.textContent = '↻ Actualizar';
+}
+
+function updateMetrics() {
+  const devices = getActiveDevices();
+  const total = devices.length;
+  const ok = devices.filter(d => isOnline(d) && !hasError(d)).length;
+  const offline = devices.filter(d => !isOnline(d)).length;
+  const error = devices.filter(d => hasError(d)).length;
+  const noSignal = devices.filter(d => isNoSignal(d)).length;
+  const pct = total > 0 ? Math.round((ok / total) * 100) : 0;
+  const color = pct >= 90 ? 'var(--ok)' : pct >= 70 ? 'var(--warn)' : 'var(--danger)';
+
+  document.getElementById('mTotal').textContent = total;
+  document.getElementById('mOk').textContent = ok;
+  document.getElementById('mOffline').textContent = offline;
+  document.getElementById('mError').textContent = error;
+  document.getElementById('mNoSignal').textContent = noSignal;
+  document.getElementById('availPct').textContent = pct + '%';
+  document.getElementById('availPct').style.color = color;
+  document.getElementById('availBar').style.width = pct + '%';
+  document.getElementById('availBar').style.background = color;
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDevices();
+}
+
+function renderDevices() {
+  const search = (document.getElementById('searchInput').value || '').toLowerCase();
+  let devices = getActiveDevices();
+
+  devices = devices.filter(d => {
+    const name = (d.deviceName || '').toLowerCase();
+    const group = (d.groupName || '').toLowerCase();
+    const ip = (d.ipAddress || '').toLowerCase();
+    return !search || name.includes(search) || group.includes(search) || ip.includes(search);
+  }).filter(d => {
+    if (currentFilter === 'offline') return !isOnline(d);
+    if (currentFilter === 'ok') return isOnline(d) && !hasError(d);
+    if (currentFilter === 'error') return hasError(d);
+    return true;
+  });
+
+  devices.sort((a, b) => {
+    const score = d => !isOnline(d) ? 0 : hasError(d) ? 1 : 2;
+    return score(a) - score(b);
+  });
+
+  const total = getActiveDevices().length;
+  document.getElementById('filterInfo').textContent = `${devices.length} de ${total}`;
+
+  if (!devices.length) {
+    document.getElementById('deviceGrid').innerHTML =
+      '<div class="empty" style="grid-column:1/-1">Sin pantallas en esta categoría.</div>';
+    return;
+  }
+
+  document.getElementById('deviceGrid').innerHTML = devices.map(d => {
+    const online = isOnline(d);
+    const error = hasError(d);
+    let cardClass, dotClass, statusClass, statusText;
+    if (!online) { cardClass='offline'; dotClass='offline'; statusClass='offline'; statusText='Offline'; }
+    else if (error) { cardClass='warn'; dotClass='warn'; statusClass='warn'; statusText='Falla HW'; }
+    else { cardClass='ok'; dotClass='ok'; statusClass='ok'; statusText='OK'; }
+
+    const serverBadge = currentServer === 'both'
+      ? `<span class="srv-badge ${d._server}">${d._server === 'bosque' ? 'Bosque' : 'Callecalle'}</span>`
+      : '';
+
+    return `<div class="device-card ${cardClass}">
+      <div class="status-dot ${dotClass}"></div>
+      <div class="device-info">
+        <div class="device-name">${d.deviceName || d.deviceId || 'Sin nombre'}</div>
+        <div class="device-group">${d.groupName || 'Sin grupo'}</div>
+        <div class="device-ip">${d.ipAddress || '—'}${d.deviceModelName ? ' · ' + d.deviceModelName : ''}</div>
+      </div>
+      <div class="card-right">
+        <span class="device-status ${statusClass}">${statusText}</span>
+        ${serverBadge}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderAlerts() {
+  const alerts = currentServer === 'both'
+    ? allAlerts
+    : allAlerts.filter(a => !a.server || a.server === currentServer);
+
+  document.getElementById('alertCount').textContent = alerts.length + ' alertas';
+
+  if (!alerts.length) {
+    document.getElementById('alertsList').innerHTML =
+      '<div class="empty">Sin alertas registradas.</div>';
+    return;
+  }
+
+  document.getElementById('alertsList').innerHTML = alerts.map(a => {
+    const srvBadge = a.server
+      ? `<span class="srv-badge ${a.server}" style="font-size:9px;margin-left:4px">${a.server === 'bosque' ? 'B' : 'CC'}</span>`
+      : '';
+    return `<div class="alert-row">
+      <span class="alert-time">${a.time}</span>
+      <div class="alert-dot" style="background:${a.type === 'recovery' ? 'var(--ok)' : 'var(--danger)'}"></div>
+      <span class="alert-msg">
+        <span class="alert-name">${a.name}</span>${srvBadge}
+        <span class="alert-group"> — ${a.group}</span>
+        — ${a.msg}
+      </span>
+    </div>`;
+  }).join('');
+}
+
+async function clearAlerts() {
+  if (!confirm('¿Limpiar el historial de alertas?')) return;
+  await fetch(`/api/alerts?server=${currentServer}`, { method: 'DELETE' });
+  if (currentServer === 'both') {
+    allAlerts = [];
+  } else {
+    allAlerts = allAlerts.filter(a => a.server && a.server !== currentServer);
+  }
+  renderAlerts();
+}
+
+loadAll();
+setInterval(loadAll, 5 * 60 * 1000);
+</script>
+</body>
+</html>
