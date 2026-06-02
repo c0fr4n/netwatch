@@ -81,19 +81,20 @@ async function saveToRedis(key, data) {
 }
 
 // ─── MagicINFO helpers ────────────────────────────────────────────────────────
-function shouldIgnoreDevice(device) {
+function shouldIgnoreDevice(device, serverKey) {
+  // 1) Filtro por nombre de grupo (ambos servidores)
   const group = (device.groupName || device.group || "").toLowerCase();
-  return group.includes("no considerar");
-}
+  if (group.includes("no considerar")) return true;
 
-// Dispositivos que existen y se cuentan en Total/Online,
-// pero NO se muestran como offline ni generan alertas
-function isOfflineIgnored(device, serverKey) {
-  if (serverKey !== "bosque") return false;
-  const name = (device.deviceName || "").toLowerCase();
-  const mac  = (device.macAddress || "").toLowerCase();
-  return (name && NO_CONSIDERAR_BOSQUE.names.has(name)) ||
-         (mac  && NO_CONSIDERAR_BOSQUE.macs.has(mac));
+  // 2) Lista explícita por nombre/MAC para Bosque
+  if (serverKey === "bosque") {
+    const name = (device.deviceName || "").toLowerCase();
+    const mac  = (device.macAddress || "").toLowerCase();
+    if (name && NO_CONSIDERAR_BOSQUE.names.has(name)) return true;
+    if (mac  && NO_CONSIDERAR_BOSQUE.macs.has(mac))   return true;
+  }
+
+  return false;
 }
 
 function isOnline(d) {
@@ -157,9 +158,7 @@ async function getAllDevices(serverKey, token) {
     page++;
   }
 
-  return allDevices
-    .filter((d) => !shouldIgnoreDevice(d))
-    .map((d) => isOfflineIgnored(d, serverKey) ? { ...d, _offlineIgnored: true } : d);
+  return allDevices.filter((d) => !shouldIgnoreDevice(d, serverKey));
 }
 
 // ─── Change detection ─────────────────────────────────────────────────────────
@@ -182,9 +181,6 @@ async function detectChanges(serverKey, devices) {
     const name = d.deviceName || id;
     const group = d.groupName || "Sin grupo";
     const online = isOnline(d);
-
-    // No generar alertas para dispositivos con monitoreo de offline suprimido
-    if (d._offlineIgnored) { prevStates[id] = online; return; }
 
     if (prevStates[id] !== undefined && prevStates[id] !== online) {
       alerts.unshift({

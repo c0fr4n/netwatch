@@ -1633,8 +1633,7 @@ function deviceToScreen(d, serverKey) {
     ip:       d.ipAddress || '—',
     mac:      d.macAddress || '—',
     res:      '—',
-    state:          isOnline(d) ? 'online' : 'offline',
-    offlineIgnored: d._offlineIgnored === true,
+    state:    isOnline(d) ? 'online' : 'offline',
     sinceMin: 0,
     play:     '—',
     server:   serverKey,
@@ -1710,10 +1709,9 @@ function App() {
   }, [serverKey]);
 
   const total   = screens.length;
-  // Dispositivos offline-ignorados cuentan como "online" (sin monitoreo activo)
-  const online  = screens.filter(s => s.state === 'online' || s.offlineIgnored).length;
-  const offline = screens.filter(s => s.state === 'offline' && !s.offlineIgnored).length;
-  const offlineScreens = screens.filter(s => s.state === 'offline' && !s.offlineIgnored);
+  const online  = screens.filter(s => s.state === 'online').length;
+  const offline = screens.filter(s => s.state === 'offline').length;
+  const offlineScreens = screens.filter(s => s.state === 'offline');
 
   const rootCls = `me-root me-theme-${t.theme} me-density-${t.density} me-layout-${t.layout}`;
 
