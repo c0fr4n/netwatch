@@ -1634,7 +1634,8 @@ function deviceToScreen(d, serverKey) {
     ip:       d.ipAddress || '—',
     mac:      d.macAddress || '—',
     res:      '—',
-    state:    isOnline(d) ? 'online' : 'offline',
+    state:          isOnline(d) ? 'online' : 'offline',
+    offlineIgnored: d._offlineIgnored === true,
     sinceMin: 0,
     play:     '—',
     server:   serverKey,
@@ -1711,8 +1712,8 @@ function App() {
 
   const total   = screens.length;
   const online  = screens.filter(s => s.state === 'online').length;
-  const offline = screens.filter(s => s.state === 'offline').length;
-  const offlineScreens = screens.filter(s => s.state === 'offline');
+  const offline = screens.filter(s => s.state === 'offline' && !s.offlineIgnored).length;
+  const offlineScreens = screens.filter(s => s.state === 'offline' && !s.offlineIgnored);
 
   const rootCls = `me-root me-theme-${t.theme} me-density-${t.density} me-layout-${t.layout}`;
 
