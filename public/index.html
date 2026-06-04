@@ -1747,7 +1747,7 @@ function App() {
         <HomeView offlineScreens={offlineScreens} feed={feed} screens={screens} online={online} offline={offline} total={total} />
       )}
       {active === 'Screens' && (
-        <ScreensView screens={screens} search={search} layout={t.layout} online={online} offline={offline} total={total} />
+        <ScreensView screens={screens} allScreensData={allScreensData} search={search} layout={t.layout} online={online} offline={offline} total={total} />
       )}
       {active === 'Reports' && (
         <ReportsView screens={screens} feed={feed} online={online} offline={offline} total={total} />
@@ -1843,53 +1843,91 @@ function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0 
 }
 
 // ──────────────────────────────────────────────────────────────
-// Screens view — overview donut + full inventory
+// Server summary card — donut + kpis for one server
 // ──────────────────────────────────────────────────────────────
-function ScreensView({ screens, search, layout, online, offline, total }) {
-  const statusData = useMemo(() => ([
-    { label: 'Online',  value: online,  color: C.online },
+function ServerSummaryCard({ label, screens }) {
+  const online  = screens.filter(s => s.state === 'online').length;
+  const offline = screens.filter(s => s.state === 'offline').length;
+  const total   = screens.length;
+  const pct     = total > 0 ? Math.round((online / total) * 100) : 0;
+  const statusData = [
+    { label: 'Online',  value: online,  color: C.online  },
     { label: 'Offline', value: offline, color: C.offline },
-  ]), [online, offline]);
+  ];
+  return (
+    <Card title={label} headerRight={
+      <span style={{fontSize:11,color:C.slate,fontVariantNumeric:'tabular-nums'}}>{total} pantallas</span>
+    }>
+      <div className="me-card-pad" style={{display:'flex',alignItems:'center',gap:32,flexWrap:'wrap'}}>
+        <Donut data={statusData} total={total} centerLabel={`${pct}%`} centerSub="disponible" />
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          <div>
+            <div style={{fontSize:28,fontWeight:700,color:'#16a34a',lineHeight:1}}>{online.toLocaleString('es-CL')}</div>
+            <div style={{fontSize:11,color:C.slate,marginTop:2}}>Online</div>
+          </div>
+          <div>
+            <div style={{fontSize:28,fontWeight:700,color:'#dc4f4f',lineHeight:1}}>{offline.toLocaleString('es-CL')}</div>
+            <div style={{fontSize:11,color:C.slate,marginTop:2}}>Offline</div>
+          </div>
+          <div>
+            <div style={{fontSize:22,fontWeight:600,color:'#2563eb',lineHeight:1}}>{total.toLocaleString('es-CL')}</div>
+            <div style={{fontSize:11,color:C.slate,marginTop:2}}>Total</div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
 
-  const locationData = useMemo(() => {
-    const counts = {};
-    screens.forEach(s => {
-      const top = s.loc.split('·')[0].trim();
-      counts[top] = (counts[top] || 0) + 1;
-    });
-    const palette = [C.warn, C.online, C.blue, C.purple, C.teal];
-    return Object.entries(counts).map(([k, v], i) => ({ label: k, value: v, color: palette[i % palette.length] }));
-  }, [screens]);
+// ──────────────────────────────────────────────────────────────
+// CSV export helper
+// ──────────────────────────────────────────────────────────────
+function exportCSV(screens) {
+  const headers = ['Servidor','Nombre','Grupo','Estado','IP','MAC','Modelo'];
+  const rows = screens.map(s => [
+    s.server === 'bosque' ? 'Bosque' : 'Callecalle',
+    s.name, s.loc,
+    s.state === 'online' ? 'Online' : 'Offline',
+    s.ip, s.mac, s.model,
+  ]);
+  const csv = [headers, ...rows]
+    .map(r => r.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `netwatch_reporte_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ──────────────────────────────────────────────────────────────
+// Screens view — server summaries + full inventory
+// ──────────────────────────────────────────────────────────────
+function ScreensView({ screens, allScreensData, search, layout, online, offline, total }) {
+  const bosqueScreens     = allScreensData?.bosque     || [];
+  const callecalleScreens = allScreensData?.callecalle || [];
 
   return (
     <div className="me-view me-view-screens">
-      <div className="me-screens-grid">
-        <Card title="Connection Status">
-          <div className="me-card-pad">
-            <Donut
-              data={statusData}
-              total={total}
-              centerLabel={`${Math.round((online / total) * 100)}%`}
-              centerSub="available"
-            />
-          </div>
-        </Card>
+      {/* Server summary cards */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))',gap:16,padding:'16px 20px 0'}}>
+        <ServerSummaryCard label="Bosque"     screens={bosqueScreens}     />
+        <ServerSummaryCard label="Callecalle" screens={callecalleScreens} />
+      </div>
 
-        <Card title="By Location">
-          <div className="me-card-pad">
-            <Donut
-              data={locationData}
-              total={total}
-              centerLabel={String(locationData.length)}
-              centerSub="sites"
-            />
-          </div>
-        </Card>
-
-        <Card title={`Screen Inventory · ${total} displays`} headerRight={
-          <div className="me-card-stats">
+      {/* Inventory */}
+      <div style={{padding:'0 20px 20px'}}>
+        <Card title={`Inventario · ${total} pantallas`} headerRight={
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
             <span className="me-card-stat me-card-stat-ok"><span className="me-state-dot"/> {online} online</span>
             <span className="me-card-stat me-card-stat-crit"><span className="me-state-dot"/> {offline} offline</span>
+            <button onClick={() => exportCSV(screens)}
+              style={{marginLeft:8,padding:'4px 12px',fontSize:11,fontWeight:600,borderRadius:6,
+                border:'1.5px solid #2563eb',background:'#eff6ff',color:'#2563eb',cursor:'pointer'}}>
+              ↓ Descargar CSV
+            </button>
           </div>
         }>
           <ScreenInventory screens={screens} search={search} layout={layout} />
