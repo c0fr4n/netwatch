@@ -1685,6 +1685,7 @@ function App() {
   // allScreens holds BOTH servers always; screens is filtered view
   const [allScreensData, setAllScreensData] = useState({ bosque: [], callecalle: [] });
   const [allAlertsData,  setAllAlertsData]  = useState([]);
+  const [showExcluded,   setShowExcluded]   = useState(false);
 
   async function loadData() {
     setLoading(true);
@@ -1719,9 +1720,13 @@ function App() {
   }, []);
 
   // Filter instantly in browser — no extra API call
-  const screens = serverKey === 'both'
+  const rawScreens = serverKey === 'both'
     ? [...(allScreensData.bosque || []), ...(allScreensData.callecalle || [])]
     : (allScreensData[serverKey] || []);
+
+  const screens = showExcluded
+    ? rawScreens
+    : rawScreens.filter(s => !s.groupExcluded && !s.manualExcluded);
 
   const feed = serverKey === 'both'
     ? allAlertsData
@@ -1747,7 +1752,7 @@ function App() {
         <HomeView offlineScreens={offlineScreens} feed={feed} screens={screens} online={online} offline={offline} total={total} />
       )}
       {active === 'Screens' && (
-        <ScreensView screens={screens} allScreensData={allScreensData} search={search} layout={t.layout} online={online} offline={offline} total={total} />
+        <ScreensView screens={screens} allScreensData={allScreensData} showExcluded={showExcluded} setShowExcluded={setShowExcluded} search={search} layout={t.layout} online={online} offline={offline} total={total} />
       )}
       {active === 'Reports' && (
         <ReportsView screens={screens} feed={feed} online={online} offline={offline} total={total} />
@@ -1905,38 +1910,193 @@ function exportCSV(screens) {
 // ──────────────────────────────────────────────────────────────
 // Screens view — server summaries + full inventory
 // ──────────────────────────────────────────────────────────────
-function ScreensView({ screens, allScreensData, search, layout, online, offline, total }) {
-  const bosqueScreens     = allScreensData?.bosque     || [];
-  const callecalleScreens = allScreensData?.callecalle || [];
+async function excludeDevice(deviceId) {
+  await fetch('/api/excluded', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ deviceId }),
+  });
+}
+async function includeDevice(deviceId) {
+  await fetch(`/api/excluded/${encodeURIComponent(deviceId)}`, { method: 'DELETE' });
+}
+
+function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, search, layout, online, offline, total }) {
+  const bosqueAll      = allScreensData?.bosque     || [];
+  const callecalleAll  = allScreensData?.callecalle || [];
+  const bosqueActive   = bosqueAll.filter(s => !s.groupExcluded && !s.manualExcluded);
+  const bosqueExcGroup  = bosqueAll.filter(s => s.groupExcluded);
+  const bosqueExcManual = bosqueAll.filter(s => s.manualExcluded && !s.groupExcluded);
+  const totalExcluded   = bosqueExcGroup.length + bosqueExcManual.length;
+  const excludedScreens = bosqueAll.filter(s => s.groupExcluded || s.manualExcluded);
+  const [pending, setPending] = useState(null);
+
+  async function handleExclude(screen) {
+    setPending(screen.id);
+    await excludeDevice(screen.id);
+    window.location.reload();
+  }
+  async function handleInclude(screen) {
+    setPending(screen.id);
+    await includeDevice(screen.id);
+    window.location.reload();
+  }
 
   return (
     <div className="me-view me-view-screens">
-      {/* Server summary cards */}
+      {/* Server summary cards — Bosque shows active count unless showExcluded */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))',gap:16,padding:'16px 20px 0'}}>
-        <ServerSummaryCard label="Bosque"     screens={bosqueScreens}     />
-        <ServerSummaryCard label="Callecalle" screens={callecalleScreens} />
+        <ServerSummaryCard label="Bosque"     screens={showExcluded ? bosqueAll : bosqueActive} />
+        <ServerSummaryCard label="Callecalle" screens={callecalleAll} />
       </div>
 
-      {/* Inventory */}
-      <div style={{padding:'0 20px 20px'}}>
+      {/* Excluded toggle */}
+      <div style={{padding:'12px 20px 0',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+        <button onClick={() => setShowExcluded(v => !v)}
+          style={{padding:'5px 14px',fontSize:11,fontWeight:600,borderRadius:20,cursor:'pointer',border:'1.5px solid',
+            background:   showExcluded ? '#fef3c7' : '#f9fafb',
+            color:        showExcluded ? '#92400e' : '#6b7280',
+            borderColor:  showExcluded ? '#f59e0b' : '#d1d5db'}}>
+          {showExcluded ? '✓ Mostrando excluidas' : '○ Mostrar excluidas'}
+        </button>
+        {totalExcluded > 0 && (
+          <span style={{fontSize:11,color:'#9ca3af'}}>
+            {totalExcluded} pantalla{totalExcluded!==1?'s':''} excluida{totalExcluded!==1?'s':''} de Bosque
+            &nbsp;({bosqueExcGroup.length} por grupo · {bosqueExcManual.length} manual{bosqueExcManual.length!==1?'es':''})
+          </span>
+        )}
+      </div>
+
+      {/* Excluded screens table */}
+      {showExcluded && excludedScreens.length > 0 && (
+        <div style={{padding:'12px 20px 0'}}>
+          <Card title={`Pantallas excluidas · ${excludedScreens.length}`} headerRight={
+            <span style={{fontSize:11,color:'#9ca3af'}}>Solo Bosque</span>
+          }>
+            <div style={{overflowX:'auto'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                <thead>
+                  <tr style={{borderBottom:'1px solid #e5e7eb'}}>
+                    {['Nombre','Grupo','Estado','IP','Tipo','Acción'].map(h => (
+                      <th key={h} style={{padding:'8px 12px',textAlign:'left',color:'#6b7280',fontWeight:500,fontSize:11}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {excludedScreens.map(s => (
+                    <tr key={s.id} style={{borderBottom:'1px solid #f3f4f6'}}>
+                      <td style={{padding:'8px 12px',fontFamily:'monospace',fontSize:11}}>{s.name}</td>
+                      <td style={{padding:'8px 12px',color:'#6b7280',fontSize:11}}>{s.loc}</td>
+                      <td style={{padding:'8px 12px'}}>
+                        <span style={{fontSize:10,padding:'2px 7px',borderRadius:10,
+                          background:s.state==='online'?'#dcfce7':'#fee2e2',
+                          color:s.state==='online'?'#166534':'#991b1b'}}>{s.state}</span>
+                      </td>
+                      <td style={{padding:'8px 12px',fontFamily:'monospace',fontSize:11,color:'#6b7280'}}>{s.ip}</td>
+                      <td style={{padding:'8px 12px',fontSize:11,color:'#9ca3af'}}>
+                        {s.groupExcluded ? 'Grupo' : 'Manual'}
+                      </td>
+                      <td style={{padding:'8px 12px'}}>
+                        {s.manualExcluded && !s.groupExcluded ? (
+                          <button onClick={() => handleInclude(s)} disabled={pending===s.id}
+                            style={{fontSize:10,padding:'3px 10px',borderRadius:5,cursor:'pointer',
+                              border:'1px solid #16a34a',background:'#f0fdf4',color:'#166534',
+                              opacity:pending===s.id?0.5:1}}>
+                            ↩ Reincorporar
+                          </button>
+                        ) : (
+                          <span style={{fontSize:10,color:'#d1d5db'}}>Excluida por grupo</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Active inventory */}
+      <div style={{padding:'12px 20px 20px'}}>
         <Card title={`Inventario · ${total} pantallas`} headerRight={
-          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
             <span className="me-card-stat me-card-stat-ok"><span className="me-state-dot"/> {online} online</span>
             <span className="me-card-stat me-card-stat-crit"><span className="me-state-dot"/> {offline} offline</span>
             <button onClick={() => exportCSV(screens)}
-              style={{marginLeft:8,padding:'4px 12px',fontSize:11,fontWeight:600,borderRadius:6,
+              style={{padding:'4px 12px',fontSize:11,fontWeight:600,borderRadius:6,
                 border:'1.5px solid #2563eb',background:'#eff6ff',color:'#2563eb',cursor:'pointer'}}>
               ↓ Descargar CSV
             </button>
           </div>
         }>
-          <ScreenInventory screens={screens} search={search} layout={layout} />
+          <ScreenInventoryWithExclude screens={screens} search={search}
+            onExclude={handleExclude} pending={pending} />
         </Card>
       </div>
     </div>
   );
 }
 
+function ScreenInventoryWithExclude({ screens, search, onExclude, pending }) {
+  const q = (search || '').toLowerCase();
+  const filtered = screens.filter(s =>
+    !q || s.name.toLowerCase().includes(q) || s.loc.toLowerCase().includes(q) || s.ip.includes(q)
+  );
+  return (
+    <div style={{overflowX:'auto'}}>
+      <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+        <thead>
+          <tr style={{borderBottom:'1px solid #e5e7eb'}}>
+            {['','Nombre','Grupo','Estado','IP','Modelo','Servidor',''].map((h,i)=>(
+              <th key={i} style={{padding:'8px 12px',textAlign:'left',color:'#6b7280',fontWeight:500,fontSize:11}}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map(s => (
+            <tr key={s.id} style={{borderBottom:'1px solid #f3f4f6'}}>
+              <td style={{padding:'8px 6px 8px 12px'}}>
+                <span style={{width:7,height:7,borderRadius:'50%',display:'inline-block',
+                  background:s.state==='online'?'#4ade80':'#f87171'}}/>
+              </td>
+              <td style={{padding:'8px 12px',fontFamily:'monospace',fontSize:11,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.name}</td>
+              <td style={{padding:'8px 12px',color:'#6b7280',fontSize:11,maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.loc}</td>
+              <td style={{padding:'8px 12px'}}>
+                <span style={{fontSize:10,padding:'2px 7px',borderRadius:10,
+                  background:s.state==='online'?'#dcfce7':'#fee2e2',
+                  color:s.state==='online'?'#166534':'#991b1b'}}>{s.state}</span>
+              </td>
+              <td style={{padding:'8px 12px',fontFamily:'monospace',fontSize:11,color:'#6b7280'}}>{s.ip}</td>
+              <td style={{padding:'8px 12px',fontSize:11,color:'#9ca3af'}}>{s.model}</td>
+              <td style={{padding:'8px 12px'}}>
+                <span style={{fontSize:10,padding:'2px 8px',borderRadius:10,fontWeight:600,
+                  background:s.server==='bosque'?'#ede9fe':'#e0f2fe',
+                  color:s.server==='bosque'?'#5b21b6':'#0369a1'}}>
+                  {s.server==='bosque'?'Bosque':'Callecalle'}
+                </span>
+              </td>
+              <td style={{padding:'8px 12px'}}>
+                {s.server==='bosque' && (
+                  <button onClick={() => onExclude(s)} disabled={pending===s.id}
+                    title="Excluir del monitoreo"
+                    style={{fontSize:10,padding:'2px 8px',borderRadius:5,cursor:'pointer',
+                      border:'1px solid #e5e7eb',background:'#f9fafb',color:'#9ca3af',
+                      opacity:pending===s.id?0.5:1}}>
+                    ⊘ Excluir
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {filtered.length===0 && (
+        <div style={{textAlign:'center',padding:'2rem',color:'#9ca3af',fontSize:13}}>Sin resultados.</div>
+      )}
+    </div>
+  );
+}
 // ──────────────────────────────────────────────────────────────
 // Reports view — quick stats summary
 // ──────────────────────────────────────────────────────────────

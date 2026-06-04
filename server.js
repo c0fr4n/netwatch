@@ -2,21 +2,8 @@ const express = require("express");
 const axios = require("axios");
 const https = require("https");
 const path = require("path");
-const fs = require("fs");
 const { createClient } = require("redis");
 require("dotenv").config();
-
-// ─── Lista de exclusión Bosque ────────────────────────────────────────────────
-const _noConsiderarRaw = (() => {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(__dirname, "config", "no-considerar-bosque.json"), "utf8"));
-  } catch { return { names: [], macs: [] }; }
-})();
-const NO_CONSIDERAR_BOSQUE = {
-  names: new Set(_noConsiderarRaw.names.map(n => n.toLowerCase())),
-  macs:  new Set(_noConsiderarRaw.macs.map(m => m.toLowerCase())),
-};
-console.log(`[Config] Bosque exclusiones: ${NO_CONSIDERAR_BOSQUE.names.size} dispositivos cargados`);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -81,20 +68,29 @@ async function saveToRedis(key, data) {
 }
 
 // ─── MagicINFO helpers ────────────────────────────────────────────────────────
-function shouldIgnoreDevice(device, serverKey) {
-  // 1) Filtro por nombre de grupo (ambos servidores)
+// In-memory excluded set (synced from Redis on start + mutations)
+let excludedIds = new Set();
+
+async function loadExcluded() {
+  try {
+    const raw = await redis.get("netwatch:bosque:excluded");
+    excludedIds = new Set(raw ? JSON.parse(raw) : []);
+  } catch { excludedIds = new Set(); }
+}
+async function saveExcluded() {
+  try {
+    await redis.set("netwatch:bosque:excluded", JSON.stringify([...excludedIds]));
+  } catch(e) { console.error("[Excluded] save:", e.message); }
+}
+
+function shouldIgnoreDevice(device) {
   const group = (device.groupName || device.group || "").toLowerCase();
-  if (group.includes("no considerar")) return true;
+  return group.includes("no considerar");
+}
 
-  // 2) Lista explícita por nombre/MAC para Bosque
-  if (serverKey === "bosque") {
-    const name = (device.deviceName || "").toLowerCase();
-    const mac  = (device.macAddress || "").toLowerCase();
-    if (name && NO_CONSIDERAR_BOSQUE.names.has(name)) return true;
-    if (mac  && NO_CONSIDERAR_BOSQUE.macs.has(mac))   return true;
-  }
-
-  return false;
+function isManuallyExcluded(device) {
+  const id = device.deviceId || device.macAddress;
+  return excludedIds.has(id);
 }
 
 function isOnline(d) {
@@ -158,7 +154,7 @@ async function getAllDevices(serverKey, token) {
     page++;
   }
 
-  return allDevices.filter((d) => !shouldIgnoreDevice(d, serverKey));
+  return allDevices.filter((d) => !shouldIgnoreDevice(d));
 }
 
 // ─── Change detection ─────────────────────────────────────────────────────────
@@ -233,6 +229,8 @@ async function pollAll() {
 async function start() {
   await redis.connect();
   console.log("[Redis] Conectado");
+  await loadExcluded();
+  console.log(`[Excluded] ${excludedIds.size} pantallas excluidas cargadas`);
   await pollAll();
   setInterval(pollAll, 5 * 60 * 1000);
 }
@@ -270,10 +268,16 @@ app.get("/api/devices", async (req, res) => {
           s.devicesCache = devices;
           s.devicesCacheTime = Date.now();
         }
+        // Tag devices with exclusion flags; include all so frontend controls visibility
+        const taggedDevices = devices.map(d => ({
+          ...d,
+          _groupExcluded:  key === "bosque" && shouldIgnoreDevice(d),
+          _manualExcluded: key === "bosque" && isManuallyExcluded(d),
+        }));
         results[key] = {
           ok: true,
           label: cfg.label,
-          devices,
+          devices: taggedDevices,
           cached,
           cacheAge: s.devicesCacheTime
             ? Math.round((Date.now() - s.devicesCacheTime) / 1000)
@@ -345,6 +349,30 @@ app.get("/api/status", async (req, res) => {
     redis: redis.isOpen ? "conectado" : "desconectado",
     umbralMin: UMBRAL_MIN,
   });
+});
+
+// ─── Excluded devices API (Bosque only) ──────────────────────────────────────
+
+// GET /api/excluded — list excluded device IDs
+app.get("/api/excluded", async (req, res) => {
+  res.json({ ok: true, excluded: [...excludedIds] });
+});
+
+// POST /api/excluded { deviceId } — add to excluded
+app.post("/api/excluded", async (req, res) => {
+  const { deviceId } = req.body;
+  if (!deviceId) return res.status(400).json({ ok: false, error: "deviceId requerido" });
+  excludedIds.add(deviceId);
+  await saveExcluded();
+  res.json({ ok: true, excluded: [...excludedIds] });
+});
+
+// DELETE /api/excluded/:deviceId — remove from excluded
+app.delete("/api/excluded/:deviceId", async (req, res) => {
+  const { deviceId } = req.params;
+  excludedIds.delete(deviceId);
+  await saveExcluded();
+  res.json({ ok: true, excluded: [...excludedIds] });
 });
 
 app.listen(PORT, () =>
