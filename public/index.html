@@ -222,7 +222,7 @@ input  { font-family: inherit; }
    ============================================================ */
 .me-kpi-strip {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   background: var(--me-card);
   border-bottom: 1px solid var(--me-border);
   margin: 0;
@@ -1166,12 +1166,18 @@ input  { font-family: inherit; }
 }
 @media (max-width: 820px) {
   .me-main { grid-template-columns: 1fr; }
-  .me-kpi-strip { grid-template-columns: repeat(2, 1fr); } /* 4→2 en móvil */
+  .me-kpi-strip { grid-template-columns: repeat(2, 1fr); }
   .me-kpi { border-bottom: 1px solid var(--me-border); }
   .me-donut-wrap { grid-template-columns: 1fr; }
   .me-donut { margin: 0 auto; }
 }
 
+
+.me-kpi-ok    .me-kpi-value { color: #16a34a; }
+.me-kpi-crit  .me-kpi-value { color: #dc4f4f; }
+.me-kpi-warn  .me-kpi-value { color: #d97706; }
+.me-kpi-mute  .me-kpi-value { color: #7c3aed; }
+.me-kpi-total .me-kpi-value { color: #2563eb; }
 </style>
 </head>
 <body>
@@ -1179,7 +1185,6 @@ input  { font-family: inherit; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.21.3/babel.min.js"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script type="text/babel">
 
 const { useState, useEffect, useMemo, useRef } = React;
@@ -1377,16 +1382,19 @@ function KpiStrip({ screens, online, offline, total }) {
   online  = online  ?? screens.filter(s => s.state === 'online').length;
   offline = offline ?? screens.filter(s => s.state === 'offline').length;
   total   = total   ?? screens.length;
+  const noSignal = screens.filter(s => s.state === 'offline').length;
+
   const cards = [
-    { value: total,   label: 'Total',             cls: 'me-kpi-total' },
-    { value: online,  label: 'Online',            cls: 'me-kpi-ok'    },
-    { value: offline, label: 'Offline',           cls: 'me-kpi-crit'  },
-    { value: 0,       label: 'Sin señal >90 min', cls: 'me-kpi-mute'  },
+    { value: total,   label: 'Total',              cls: 'me-kpi-total'   },
+    { value: online,  label: 'Online',             cls: 'me-kpi-ok'      },
+    { value: offline, label: 'Offline',            cls: 'me-kpi-crit'    },
+    { value: 0,       label: 'Con advertencia',    cls: 'me-kpi-warn'    },
+    { value: 0,       label: 'Sin señal >90 min',  cls: 'me-kpi-mute'    },
   ];
   return (
     <section className="me-kpi-strip">
       {cards.map((c, i) => (
-        <div key={i} className="me-kpi">
+        <div key={i} className={`me-kpi ${c.cls || ''}`}>
           <div className="me-kpi-value">{c.value.toLocaleString()}</div>
           <div className="me-kpi-label">{c.label}</div>
         </div>
@@ -1670,44 +1678,54 @@ function App() {
   };
 
   const [serverKey, setServerKey] = useState('both');
-  const [screens,   setScreens]   = useState([]);
-  const [feed,      setFeed]      = useState([]);
   const [active,    setActive]    = useState('Home');
   const [search,    setSearch]    = useState('');
   const [loading,   setLoading]   = useState(true);
 
-  async function loadData(srv) {
+  // allScreens holds BOTH servers always; screens is filtered view
+  const [allScreensData, setAllScreensData] = useState({ bosque: [], callecalle: [] });
+  const [allAlertsData,  setAllAlertsData]  = useState([]);
+
+  async function loadData() {
     setLoading(true);
     try {
-      const key = srv !== undefined ? srv : serverKey;
       const [devRes, alertRes] = await Promise.all([
-        fetch('/api/devices?server=' + key),
-        fetch('/api/alerts?server='  + key),
+        fetch('/api/devices?server=both'),
+        fetch('/api/alerts?server=both'),
       ]);
       const devData   = await devRes.json();
       const alertData = await alertRes.json();
 
       if (devData.ok && devData.servers) {
-        const all = [];
+        const byServer = { bosque: [], callecalle: [] };
         Object.entries(devData.servers).forEach(([k, srv]) => {
           if (srv.ok && srv.devices) {
-            srv.devices.forEach(d => all.push(deviceToScreen(d, k)));
+            byServer[k] = srv.devices.map(d => deviceToScreen(d, k));
           }
         });
-        setScreens(all);
+        setAllScreensData(byServer);
       }
       if (alertData.ok && alertData.alerts) {
-        setFeed(alertData.alerts.map((a, i) => alertToFeed(a, i)));
+        setAllAlertsData(alertData.alerts.map((a, i) => alertToFeed(a, i)));
       }
     } catch(e) { console.error('API error:', e); }
     setLoading(false);
   }
 
   useEffect(() => {
-    loadData(serverKey);
-    const iv = setInterval(() => loadData(serverKey), 5 * 60 * 1000);
+    loadData();
+    const iv = setInterval(loadData, 5 * 60 * 1000);
     return () => clearInterval(iv);
-  }, [serverKey]);
+  }, []);
+
+  // Filter instantly in browser — no extra API call
+  const screens = serverKey === 'both'
+    ? [...(allScreensData.bosque || []), ...(allScreensData.callecalle || [])]
+    : (allScreensData[serverKey] || []);
+
+  const feed = serverKey === 'both'
+    ? allAlertsData
+    : allAlertsData.filter(a => !a.server || a.server === serverKey);
 
   const total   = screens.length;
   const online  = screens.filter(s => s.state === 'online').length;
@@ -1720,8 +1738,8 @@ function App() {
     <div className={rootCls}>
       <BrandBar
         online={online} offline={offline} total={total}
-        serverKey={serverKey} setServerKey={(k) => { setServerKey(k); loadData(k); }}
-        loading={loading} onRefresh={() => loadData(serverKey)}
+        serverKey={serverKey} setServerKey={setServerKey}
+        loading={loading} onRefresh={loadData}
       />
       <NavBar active={active} setActive={setActive} search={search} setSearch={setSearch} />
 
@@ -1775,42 +1793,9 @@ function TweaksPanelSimple({ theme, density, layout, setTweak }) {
 
 
 // ──────────────────────────────────────────────────────────────
-// Export offline screens → Excel
-// ──────────────────────────────────────────────────────────────
-function exportOfflineExcel(offlineScreens) {
-  const now = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
-
-  const rows = offlineScreens.map(s => ({
-    'Nombre':     s.name,
-    'IP':         s.ip,
-    'MAC':        s.mac,
-    'Ubicación':  s.loc,
-    'Modelo':     s.model,
-    'Servidor':   s.server || '—',
-    'Tiempo offline': s.sinceMin > 0 ? `${Math.round(s.sinceMin)} min` : '< 1 min',
-    'Exportado':  now.toLocaleString('es-CL', { timeZone: 'America/Santiago' }),
-  }));
-
-  const ws = XLSX.utils.json_to_sheet(rows);
-
-  // Ancho de columnas
-  ws['!cols'] = [
-    { wch: 38 }, { wch: 16 }, { wch: 20 }, { wch: 40 },
-    { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 22 },
-  ];
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Offline');
-  XLSX.writeFile(wb, `offline_${ts}.xlsx`);
-}
-
-// ──────────────────────────────────────────────────────────────
 // Home view — live operations: offline tiles + event log
 // ──────────────────────────────────────────────────────────────
 function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0 }) {
-  // Only show events for actual disconnect/reconnect (not config/deploy)
   const liveFeed = useMemo(() =>
     feed.filter(f => f.kind === 'online' || f.kind === 'offline'),
     [feed]
@@ -1823,20 +1808,10 @@ function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0 
         <Card
           title={`Currently Offline · ${offlineScreens.length}`}
           headerRight={offlineScreens.length > 0 && (
-            <div style={{display:'flex', alignItems:'center', gap:8}}>
-              <span className="me-card-stat me-card-stat-crit">
-                <span className="me-state-dot" />
-                REQUIRES ATTENTION
-              </span>
-              <button
-                onClick={() => exportOfflineExcel(offlineScreens)}
-                title="Descargar Excel"
-                style={{display:'inline-flex',alignItems:'center',gap:5,padding:'3px 10px',fontSize:11,fontWeight:600,
-                  border:'1px solid #e4e7ec',borderRadius:4,background:'#f8f9fb',cursor:'pointer',color:'#2d3540',whiteSpace:'nowrap'}}
-              >
-                ↓ Excel
-              </button>
-            </div>
+            <span className="me-card-stat me-card-stat-crit">
+              <span className="me-state-dot" />
+              REQUIRES ATTENTION
+            </span>
           )}
         >
           {offlineScreens.length === 0 ? (
@@ -2030,11 +2005,11 @@ function EventLog({ feed, screens }) {
               <span className={`me-evl-tag me-evl-tag-${isDown ? 'crit' : 'ok'}`}>
                 {isDown ? '↓ DOWN' : '↑ UP'}
               </span>
-              <span className="me-evl-host">{dev ? dev.name : (f.deviceName || f.group || '—')}</span>
+              <span className="me-evl-host">{dev ? dev.name : '—'}</span>
               <span className="me-evl-meta">
                 {dev && <span className="me-evl-ip">{dev.ip}</span>}
                 {dev && <span className="me-evl-sep">·</span>}
-                {dev ? <span className="me-evl-loc">{dev.loc}</span> : f.group && <span className="me-evl-loc">{f.group}</span>}
+                {dev && <span className="me-evl-loc">{dev.loc}</span>}
               </span>
               <span className="me-evl-msg">{f.msg}</span>
             </div>
