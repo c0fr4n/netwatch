@@ -154,7 +154,8 @@ async function getAllDevices(serverKey, token) {
     page++;
   }
 
-  return allDevices.filter((d) => !shouldIgnoreDevice(d));
+  // Devolver todos los dispositivos etiquetados; el cliente controla visibilidad
+  return allDevices.filter((d) => !isManuallyExcluded(d));
 }
 
 // ─── Change detection ─────────────────────────────────────────────────────────
@@ -178,8 +179,8 @@ async function detectChanges(serverKey, devices) {
     const group = d.groupName || "Sin grupo";
     const online = isOnline(d);
 
-    // Silenciar alertas para dispositivos excluidos manualmente
-    if (isManuallyExcluded(d)) { prevStates[id] = online; return; }
+    // Silenciar alertas para dispositivos excluidos (grupo o manual)
+    if (shouldIgnoreDevice(d) || isManuallyExcluded(d)) { prevStates[id] = online; return; }
 
     if (prevStates[id] !== undefined && prevStates[id] !== online) {
       alerts.unshift({

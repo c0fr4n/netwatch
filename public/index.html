@@ -1690,7 +1690,8 @@ function App() {
   // allScreens holds BOTH servers always; screens is filtered view
   const [allScreensData, setAllScreensData] = useState({ bosque: [], callecalle: [] });
   const [allAlertsData,  setAllAlertsData]  = useState([]);
-  const [showExcluded,   setShowExcluded]   = useState(false);
+  const [showExcluded,      setShowExcluded]      = useState(false);
+  const [showNoConsiderar,  setShowNoConsiderar]  = useState(false);
 
   async function loadData() {
     setLoading(true);
@@ -1729,9 +1730,12 @@ function App() {
     ? [...(allScreensData.bosque || []), ...(allScreensData.callecalle || [])]
     : (allScreensData[serverKey] || []);
 
-  const screens = showExcluded
-    ? rawScreens
-    : rawScreens.filter(s => !s.groupExcluded && !s.manualExcluded);
+  // showExcluded: muestra excluidas manuales en Screens
+  // showNoConsiderar: suma "no considerar" a los contadores de Home
+  const screens = rawScreens.filter(s =>
+    (showNoConsiderar || !s.groupExcluded) &&
+    (showExcluded     || !s.manualExcluded)
+  );
 
   const feed = serverKey === 'both'
     ? allAlertsData
@@ -1740,7 +1744,8 @@ function App() {
   const total   = screens.length;
   const online  = screens.filter(s => s.state === 'online').length;
   const offline = screens.filter(s => s.state === 'offline').length;
-  const offlineScreens = screens.filter(s => s.state === 'offline');
+  // Currently Offline nunca muestra "no considerar" aunque el toggle esté ON
+  const offlineScreens = screens.filter(s => s.state === 'offline' && !s.groupExcluded);
 
   const rootCls = `me-root me-theme-${t.theme} me-density-${t.density} me-layout-${t.layout}`;
 
@@ -1754,7 +1759,11 @@ function App() {
       <NavBar active={active} setActive={setActive} search={search} setSearch={setSearch} />
 
       {active === 'Home' && (
-        <HomeView offlineScreens={offlineScreens} feed={feed} screens={screens} online={online} offline={offline} total={total} />
+        <HomeView offlineScreens={offlineScreens} feed={feed} screens={screens}
+          online={online} offline={offline} total={total}
+          showNoConsiderar={showNoConsiderar} setShowNoConsiderar={setShowNoConsiderar}
+          noConsiderarCount={rawScreens.filter(s => s.groupExcluded).length}
+        />
       )}
       {active === 'Screens' && (
         <ScreensView screens={screens} allScreensData={allScreensData} showExcluded={showExcluded} setShowExcluded={setShowExcluded} search={search} layout={t.layout} online={online} offline={offline} total={total} />
@@ -1805,7 +1814,7 @@ function TweaksPanelSimple({ theme, density, layout, setTweak }) {
 // ──────────────────────────────────────────────────────────────
 // Home view — live operations: offline tiles + event log
 // ──────────────────────────────────────────────────────────────
-function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0 }) {
+function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0, showNoConsiderar=false, setShowNoConsiderar, noConsiderarCount=0 }) {
   const liveFeed = useMemo(() =>
     feed.filter(f => f.kind === 'online' || f.kind === 'offline'),
     [feed]
@@ -1814,6 +1823,28 @@ function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0 
   return (
     <div className="me-view me-view-home">
       <KpiStrip screens={screens} online={online} offline={offline} total={total} />
+
+      {/* Toggle "No Considerar" */}
+      <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 22px',borderBottom:'1px solid var(--me-border)',background:'var(--me-card)'}}>
+        <button
+          onClick={() => setShowNoConsiderar && setShowNoConsiderar(v => !v)}
+          style={{display:'inline-flex',alignItems:'center',gap:7,padding:'4px 12px',fontSize:11,fontWeight:600,
+            borderRadius:20,cursor:'pointer',border:'1.5px solid',transition:'all .15s',
+            background:   showNoConsiderar ? '#fef3c7' : '#f9fafb',
+            color:        showNoConsiderar ? '#92400e' : '#6b7280',
+            borderColor:  showNoConsiderar ? '#f59e0b' : '#d1d5db'}}
+        >
+          <span style={{fontSize:13,lineHeight:1}}>{showNoConsiderar ? '●' : '○'}</span>
+          {showNoConsiderar ? 'Incluir "No Considerar"' : 'Excluir "No Considerar"'}
+        </button>
+        {noConsiderarCount > 0 && (
+          <span style={{fontSize:11,color:'#9ca3af'}}>
+            {noConsiderarCount} pantalla{noConsiderarCount!==1?'s':''} en lista "No Considerar"
+            {showNoConsiderar ? ' · sumadas al total' : ' · ocultas de los contadores'}
+          </span>
+        )}
+      </div>
+
       <div className="me-home-grid">
         <Card
           title={`Currently Offline · ${offlineScreens.length}`}
