@@ -178,6 +178,9 @@ async function detectChanges(serverKey, devices) {
     const group = d.groupName || "Sin grupo";
     const online = isOnline(d);
 
+    // Silenciar alertas para dispositivos excluidos manualmente
+    if (isManuallyExcluded(d)) { prevStates[id] = online; return; }
+
     if (prevStates[id] !== undefined && prevStates[id] !== online) {
       alerts.unshift({
         id: now + "_" + id,
