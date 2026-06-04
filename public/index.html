@@ -1763,6 +1763,7 @@ function App() {
           online={online} offline={offline} total={total}
           showNoConsiderar={showNoConsiderar} setShowNoConsiderar={setShowNoConsiderar}
           noConsiderarCount={rawScreens.filter(s => s.groupExcluded).length}
+          search={search}
         />
       )}
       {active === 'Screens' && (
@@ -1814,11 +1815,28 @@ function TweaksPanelSimple({ theme, density, layout, setTweak }) {
 // ──────────────────────────────────────────────────────────────
 // Home view — live operations: offline tiles + event log
 // ──────────────────────────────────────────────────────────────
-function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0, showNoConsiderar=false, setShowNoConsiderar, noConsiderarCount=0 }) {
-  const liveFeed = useMemo(() =>
-    feed.filter(f => f.kind === 'online' || f.kind === 'offline'),
-    [feed]
-  );
+function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0, showNoConsiderar=false, setShowNoConsiderar, noConsiderarCount=0, search='' }) {
+  const q = search.trim().toLowerCase();
+
+  const visibleOffline = useMemo(() => {
+    if (!q) return offlineScreens;
+    return offlineScreens.filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      (s.loc  || '').toLowerCase().includes(q) ||
+      (s.ip   || '').includes(q) ||
+      (s.mac  || '').toLowerCase().includes(q)
+    );
+  }, [offlineScreens, q]);
+
+  const liveFeed = useMemo(() => {
+    const base = feed.filter(f => f.kind === 'online' || f.kind === 'offline');
+    if (!q) return base;
+    return base.filter(f =>
+      (f.deviceName || '').toLowerCase().includes(q) ||
+      (f.group      || '').toLowerCase().includes(q) ||
+      (f.msg        || '').toLowerCase().includes(q)
+    );
+  }, [feed, q]);
 
   return (
     <div className="me-view me-view-home">
@@ -1847,26 +1865,34 @@ function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0,
 
       <div className="me-home-grid">
         <Card
-          title={`Currently Offline · ${offlineScreens.length}`}
+          title={`Currently Offline · ${visibleOffline.length}${q && visibleOffline.length !== offlineScreens.length ? ` (de ${offlineScreens.length})` : ''}`}
           headerRight={offlineScreens.length > 0 && (
-            <span className="me-card-stat me-card-stat-crit">
-              <span className="me-state-dot" />
-              REQUIRES ATTENTION
-            </span>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <span className="me-card-stat me-card-stat-crit">
+                <span className="me-state-dot" />
+                REQUIRES ATTENTION
+              </span>
+              <button onClick={() => exportOfflineExcel(visibleOffline)} title="Descargar Excel"
+                style={{display:'inline-flex',alignItems:'center',gap:5,padding:'3px 10px',fontSize:11,
+                  fontWeight:600,border:'1px solid #e4e7ec',borderRadius:4,background:'#f8f9fb',
+                  cursor:'pointer',color:'#2d3540',whiteSpace:'nowrap'}}>
+                ↓ Excel
+              </button>
+            </div>
           )}
         >
-          {offlineScreens.length === 0 ? (
+          {visibleOffline.length === 0 ? (
             <div className="me-home-allclear">
               <div className="me-home-allclear-dot" />
               <div>
-                <div className="me-home-allclear-title">All screens online</div>
-                <div className="me-home-allclear-sub">No connectivity issues detected.</div>
+                <div className="me-home-allclear-title">{q ? `Sin resultados para "${search}"` : 'All screens online'}</div>
+                <div className="me-home-allclear-sub">{q ? 'Prueba con otro término de búsqueda.' : 'No connectivity issues detected.'}</div>
               </div>
             </div>
           ) : (
             <div className="me-tiles-wrap">
               <div className="me-tiles-grid">
-                {offlineScreens.map(s => <ScreenTile key={s.id} screen={s} />)}
+                {visibleOffline.map(s => <ScreenTile key={s.id} screen={s} />)}
               </div>
             </div>
           )}
