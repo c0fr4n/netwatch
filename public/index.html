@@ -2534,7 +2534,7 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
           {/* Tabla */}
           <div style={{overflowX:'auto',overflowY:'auto',maxHeight:500}}>
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-              <thead style={{position:'sticky',top:0,zIndex:1}}>
+              <thead style={{position:'sticky',top:0,zIndex:1,background:'#fff'}}>
                 <tr>
                   {[['name','Nombre'],['loc','Grupo'],['state','Estado'],['ip','IP'],['model','Modelo'],['server','Servidor'],['tipoTienda','Tipo']].map(([col,label])=>(
                     <th key={col} onClick={() => toggleSort(col)} style={thStyle(col)}>
