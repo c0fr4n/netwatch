@@ -1479,17 +1479,38 @@ function ActivityFeed({ feed, screens }) {
 // Screen list (small table inside a card — replaces detail grid)
 // ──────────────────────────────────────────────────────────────
 // ──────────────────────────────────────────────────────────────
+// Helpers de presentación
+// ──────────────────────────────────────────────────────────────
+
+// Acorta rutas MagicINFO "arcoprime>RT>20128>20128_P3" → "20128"
+function shortLoc(loc) {
+  if (!loc) return '—';
+  const parts = loc.split('>').filter(Boolean);
+  if (parts.length <= 1) return loc.replace(/_/g, ' ');
+  const last = parts[parts.length - 1];
+  // Si el último segmento parece un nombre de panel (_P1, _P2…), usa el anterior
+  if (/[_-]P\d+$/i.test(last) && parts.length > 1) {
+    return parts[parts.length - 2].replace(/_/g, ' ');
+  }
+  return last.replace(/_/g, ' ');
+}
+
+// ──────────────────────────────────────────────────────────────
 // Screen — Tile layout (card grid)
 // ──────────────────────────────────────────────────────────────
 function ScreenTile({ screen }) {
-  const typeLabel = ({ indoor: 'INDOOR', outdoor: 'OUTDOOR', videowall: 'VIDEO WALL', kiosk: 'KIOSK' })[screen.kind] || screen.kind.toUpperCase();
-  const sinceLabel = screen.state === 'offline'
-    ? `down ${Math.round(screen.sinceMin)}m`
-    : 'stable';
+  const srvLabel  = screen.server === 'bosque' ? 'BOSQUE' : 'CALLECALLE';
+  const srvColor  = screen.server === 'bosque'
+    ? { bg: 'rgba(139,92,246,0.18)', fg: '#a78bfa' }
+    : { bg: 'rgba(56,189,248,0.18)', fg: '#38bdf8' };
   return (
     <div className={`me-tile me-tile-${screen.state}`}>
       <div className="me-tile-row1">
-        <span className="me-tile-type">{typeLabel}</span>
+        <span style={{fontSize:9,fontWeight:700,letterSpacing:'0.1em',
+          padding:'1px 7px',borderRadius:3,
+          background:srvColor.bg, color:srvColor.fg}}>
+          {srvLabel}
+        </span>
         <span className={`me-tile-badge me-state-${screen.state}`}>
           <span className="me-state-dot" />
           {screen.state === 'online' ? 'ONLINE' : 'OFFLINE'}
@@ -1498,16 +1519,10 @@ function ScreenTile({ screen }) {
       <div className="me-tile-name">{screen.name}</div>
       <div className="me-tile-id">
         <span className="me-tile-ip">{screen.ip}</span>
-        <span className="me-tile-sep">·</span>
-        <span className="me-tile-mac">{screen.mac}</span>
       </div>
       <div className="me-tile-meta">
-        <span className="me-tile-loc">{screen.loc}</span>
+        <span className="me-tile-loc">{shortLoc(screen.loc)}</span>
         <span className="me-tile-model">{screen.model}</span>
-      </div>
-      <div className="me-tile-foot">
-        <span className="me-tile-play" title={screen.play}>{screen.state === 'offline' ? '—' : screen.play}</span>
-        <span className="me-tile-since">{sinceLabel}</span>
       </div>
     </div>
   );
@@ -2633,7 +2648,7 @@ function EventLog({ feed, screens }) {
               <span className="me-evl-meta">
                 {dev && <span className="me-evl-ip">{dev.ip}</span>}
                 {dev && <span className="me-evl-sep">·</span>}
-                {dev ? <span className="me-evl-loc">{dev.loc}</span> : f.group && <span className="me-evl-loc">{f.group}</span>}
+                {dev ? <span className="me-evl-loc">{shortLoc(dev.loc)}</span> : f.group && <span className="me-evl-loc">{shortLoc(f.group)}</span>}
               </span>
               <span className="me-evl-msg">{f.msg}</span>
             </div>
