@@ -1645,6 +1645,13 @@ function isOnline(d) {
          d.panelStatus === true || d.panelStatus === 'true';
 }
 
+// Clasifica tienda por dígitos iniciales del nombre de pantalla
+function getTipoTienda(name) {
+  const match = (name || '').match(/^(\d+)/);
+  if (!match) return 'sin_clasificar';
+  return match[1].length === 4 ? 'propia' : match[1].length === 5 ? 'franquicia' : 'sin_clasificar';
+}
+
 function deviceToScreen(d, serverKey) {
   return {
     id:       d.deviceId || d.macAddress || String(Math.random()),
@@ -1660,6 +1667,7 @@ function deviceToScreen(d, serverKey) {
     manualExcluded:      d._manualExcluded      === true,
     brandChange:         d._brandChange         === true,
     brandChangeManual:   d._brandChangeManual   === true,
+    tipoTienda:          getTipoTienda(d.deviceName),
     sinceMin: 0,
     play:     '—',
     server:   serverKey,
@@ -1953,13 +1961,33 @@ function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0,
 }
 
 // ──────────────────────────────────────────────────────────────
+// TipoBadge — badge de clasificación Adm.Propia / Franquicia
+// ──────────────────────────────────────────────────────────────
+const TIPO_CFG = {
+  propia:          { label: 'Adm. Propia',    bg: '#dbeafe', fg: '#1e40af' },
+  franquicia:      { label: 'Franquicia',     bg: '#fef3c7', fg: '#92400e' },
+  sin_clasificar:  { label: 'Sin clasificar', bg: '#f3f4f6', fg: '#9ca3af' },
+};
+function TipoBadge({ tipo }) {
+  const c = TIPO_CFG[tipo] || TIPO_CFG.sin_clasificar;
+  return (
+    <span style={{fontSize:10,padding:'2px 8px',borderRadius:10,fontWeight:600,
+      whiteSpace:'nowrap',background:c.bg,color:c.fg}}>
+      {c.label}
+    </span>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
 // Server summary card — donut + kpis for one server
 // ──────────────────────────────────────────────────────────────
 function ServerSummaryCard({ label, screens }) {
-  const online  = screens.filter(s => s.state === 'online').length;
-  const offline = screens.filter(s => s.state === 'offline').length;
-  const total   = screens.length;
-  const pct     = total > 0 ? Math.round((online / total) * 100) : 0;
+  const online    = screens.filter(s => s.state === 'online').length;
+  const offline   = screens.filter(s => s.state === 'offline').length;
+  const total     = screens.length;
+  const pct       = total > 0 ? Math.round((online / total) * 100) : 0;
+  const nPropia   = screens.filter(s => s.tipoTienda === 'propia').length;
+  const nFranq    = screens.filter(s => s.tipoTienda === 'franquicia').length;
   const statusData = [
     { label: 'Online',  value: online,  color: C.online  },
     { label: 'Offline', value: offline, color: C.offline },
@@ -1983,6 +2011,13 @@ function ServerSummaryCard({ label, screens }) {
             <div style={{fontSize:22,fontWeight:600,color:'#2563eb',lineHeight:1}}>{total.toLocaleString('es-CL')}</div>
             <div style={{fontSize:11,color:C.slate,marginTop:2}}>Total</div>
           </div>
+          {(nPropia > 0 || nFranq > 0) && (
+            <div style={{fontSize:11,color:C.slate,borderTop:'1px solid #e4e7ec',paddingTop:8,lineHeight:1.6}}>
+              <span style={{color:'#1e40af',fontWeight:600}}>Adm. Propia:</span> {nPropia}
+              <span style={{margin:'0 4px',color:'#d1d5db'}}>·</span>
+              <span style={{color:'#92400e',fontWeight:600}}>Franquicia:</span> {nFranq}
+            </div>
+          )}
         </div>
       </div>
     </Card>
@@ -2151,24 +2186,35 @@ async function exportScreensPDF(filtered, chartsRef) {
     } catch(e) { console.warn('html2canvas error:', e); }
   }
 
+  const tipoLabel = t => ({ propia: 'Adm. Propia', franquicia: 'Franquicia', sin_clasificar: 'Sin clasificar' }[t] || '—');
+
   // Table
   doc.autoTable({
     startY: chartY,
-    head: [['Nombre','Grupo','Estado','IP','Modelo','Servidor']],
+    head: [['Nombre','Grupo','Estado','IP','Modelo','Servidor','Tipo']],
     body: filtered.map(s => [
       s.name, s.loc, s.state.toUpperCase(), s.ip, s.model,
       s.server === 'bosque' ? 'Bosque' : 'Callecalle',
+      tipoLabel(s.tipoTienda),
     ]),
     styles: { fontSize: 7, cellPadding: 2 },
     headStyles: { fillColor: [45, 53, 64], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [248, 249, 251] },
     columnStyles: {
-      0: { cellWidth: 52 }, 1: { cellWidth: 55 }, 2: { cellWidth: 18 },
-      3: { cellWidth: 28 }, 4: { cellWidth: 22 }, 5: { cellWidth: 22 },
+      0: { cellWidth: 48 }, 1: { cellWidth: 48 }, 2: { cellWidth: 18 },
+      3: { cellWidth: 26 }, 4: { cellWidth: 20 }, 5: { cellWidth: 20 },
+      6: { cellWidth: 22 },
     },
     didParseCell(data) {
-      if (data.column.index === 2 && data.section === 'body') {
+      if (data.section !== 'body') return;
+      if (data.column.index === 2) {
         data.cell.styles.textColor = data.cell.raw === 'OFFLINE' ? [220,79,79] : [22,163,74];
+        data.cell.styles.fontStyle = 'bold';
+      }
+      if (data.column.index === 6) {
+        data.cell.styles.textColor =
+          data.cell.raw === 'Adm. Propia' ? [30,64,175] :
+          data.cell.raw === 'Franquicia'  ? [146,64,14] : [156,163,175];
         data.cell.styles.fontStyle = 'bold';
       }
     },
@@ -2197,6 +2243,7 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
   // Tabla dinámica: filtros + orden
   const [filterState,  setFilterState]  = useState('todos');
   const [filterServer, setFilterServer] = useState('ambos');
+  const [filterTipo,   setFilterTipo]   = useState('todos');
   const [tableSearch,  setTableSearch]  = useState(search || '');
   const [sortCol,      setSortCol]      = useState('name');
   const [sortDir,      setSortDir]      = useState('asc');
@@ -2216,6 +2263,7 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
     let list = allActive;
     if (filterState  !== 'todos') list = list.filter(s => s.state === filterState);
     if (filterServer !== 'ambos') list = list.filter(s => s.server === filterServer);
+    if (filterTipo   !== 'todos') list = list.filter(s => s.tipoTienda === filterTipo);
     if (q) list = list.filter(s =>
       s.name.toLowerCase().includes(q) ||
       (s.loc  || '').toLowerCase().includes(q) ||
@@ -2226,7 +2274,7 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
       const vb = (b[sortCol] || '').toString().toLowerCase();
       return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
     });
-  }, [allActive, filterState, filterServer, tableSearch, sortCol, sortDir]);
+  }, [allActive, filterState, filterServer, filterTipo, tableSearch, sortCol, sortDir]);
 
   function toggleSort(col) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -2457,6 +2505,17 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
                   }}>{l}</button>
               ))}
             </div>
+            <div style={{display:'flex',gap:4,alignItems:'center'}}>
+              <span style={{fontSize:11,color:'#9ca3af',marginRight:2}}>Tipo:</span>
+              {[['todos','Todas'],['propia','Adm. Propia'],['franquicia','Franquicia']].map(([v,l]) => (
+                <button key={v} onClick={() => setFilterTipo(v)}
+                  style={{padding:'3px 10px',fontSize:11,fontWeight:600,borderRadius:14,cursor:'pointer',border:'1.5px solid',
+                    background: filterTipo===v ? (v==='propia'?'#dbeafe':v==='franquicia'?'#fef3c7':'#2d3540') : '#f9fafb',
+                    color:      filterTipo===v ? (v==='propia'?'#1e40af':v==='franquicia'?'#92400e':'#fff')    : '#6b7280',
+                    borderColor:filterTipo===v ? (v==='propia'?'#93c5fd':v==='franquicia'?'#fcd34d':'#2d3540') : '#e5e7eb',
+                  }}>{l}</button>
+              ))}
+            </div>
             <div style={{flex:1,minWidth:180,display:'flex',alignItems:'center',gap:6,
               border:'1px solid #e5e7eb',borderRadius:20,padding:'4px 12px',background:'#fff'}}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
@@ -2477,7 +2536,7 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
               <thead style={{position:'sticky',top:0,zIndex:1}}>
                 <tr>
-                  {[['name','Nombre'],['loc','Grupo'],['state','Estado'],['ip','IP'],['model','Modelo'],['server','Servidor']].map(([col,label])=>(
+                  {[['name','Nombre'],['loc','Grupo'],['state','Estado'],['ip','IP'],['model','Modelo'],['server','Servidor'],['tipoTienda','Tipo']].map(([col,label])=>(
                     <th key={col} onClick={() => toggleSort(col)} style={thStyle(col)}>
                       {label}{sortIcon(col)}
                     </th>
@@ -2506,6 +2565,7 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
                         {s.server==='bosque'?'Bosque':'Callecalle'}
                       </span>
                     </td>
+                    <td style={{padding:'8px 12px'}}><TipoBadge tipo={s.tipoTienda} /></td>
                     <td style={{padding:'8px 12px'}}>
                       {s.server==='bosque' && (
                         <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
