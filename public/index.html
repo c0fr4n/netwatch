@@ -1188,6 +1188,7 @@ input  { font-family: inherit; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script type="text/babel">
 
 const { useState, useEffect, useMemo, useRef } = React;
@@ -2071,6 +2072,44 @@ function MiniDonut({ data, title }) {
       </div>
     </div>
   );
+}
+
+// ──────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────
+// Excel export — Currently Offline
+// ──────────────────────────────────────────────────────────────
+function exportOfflineExcel(offlineScreens) {
+  if (!window.XLSX) { alert('Librería Excel no disponible'); return; }
+  const XLSX = window.XLSX;
+  const now = new Date();
+  const fechaStr = now.toLocaleString('es-CL', {
+    timeZone: 'America/Santiago', dateStyle: 'short', timeStyle: 'short'
+  });
+
+  const rows = offlineScreens.map(s => ({
+    'Nombre':    s.name,
+    'Grupo':     s.loc  || '—',
+    'Estado':    'Offline',
+    'IP':        s.ip   || '—',
+    'MAC':       s.mac  || '—',
+    'Modelo':    s.model|| '—',
+    'Servidor':  s.server === 'bosque' ? 'Bosque' : 'Callecalle',
+    'Generado':  fechaStr,
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+
+  // Ancho de columnas
+  ws['!cols'] = [
+    { wch: 32 }, { wch: 28 }, { wch: 10 }, { wch: 16 },
+    { wch: 20 }, { wch: 18 }, { wch: 12 }, { wch: 20 },
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Offline');
+
+  const dateTag = now.toISOString().slice(0,10);
+  XLSX.writeFile(wb, `netwatch-offline-${dateTag}.xlsx`);
 }
 
 // ──────────────────────────────────────────────────────────────
