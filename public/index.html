@@ -222,7 +222,7 @@ input  { font-family: inherit; }
    ============================================================ */
 .me-kpi-strip {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   background: var(--me-card);
   border-bottom: 1px solid var(--me-border);
   margin: 0;
@@ -1384,11 +1384,10 @@ function KpiStrip({ screens, online, offline, total }) {
   const noSignal = screens.filter(s => s.state === 'offline').length;
 
   const cards = [
-    { value: total,   label: 'Total',              cls: 'me-kpi-total'   },
-    { value: online,  label: 'Online',             cls: 'me-kpi-ok'      },
-    { value: offline, label: 'Offline',            cls: 'me-kpi-crit'    },
-    { value: 0,       label: 'Con advertencia',    cls: 'me-kpi-warn'    },
-    { value: 0,       label: 'Sin señal >90 min',  cls: 'me-kpi-mute'    },
+    { value: total,   label: 'Total',             cls: 'me-kpi-total' },
+    { value: online,  label: 'Online',            cls: 'me-kpi-ok'    },
+    { value: offline, label: 'Offline',           cls: 'me-kpi-crit'  },
+    { value: 0,       label: 'Sin señal >90 min', cls: 'me-kpi-mute'  },
   ];
   return (
     <section className="me-kpi-strip">
