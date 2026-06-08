@@ -1,6 +1,7 @@
 const express = require("express");
 const axios = require("axios");
 const https = require("https");
+const fs    = require("fs");
 const path = require("path");
 const { createClient } = require("redis");
 require("dotenv").config();
@@ -67,6 +68,19 @@ async function saveToRedis(key, data) {
   }
 }
 
+// ─── Cambio de marca config ───────────────────────────────────────────────────
+const CM_PATH = path.join(__dirname, "config", "cambio-de-marca-bosque.json");
+let CM_NAMES = new Set();
+let CM_MACS  = new Set();
+try {
+  const cmData = JSON.parse(fs.readFileSync(CM_PATH, "utf8"));
+  CM_NAMES = new Set((cmData.names || []).map(n => n.toLowerCase()));
+  CM_MACS  = new Set((cmData.macs  || []).map(m => m.toLowerCase()));
+  console.log(`[CambioMarca] ${CM_NAMES.size} dispositivos cargados desde JSON`);
+} catch(e) {
+  console.warn("[CambioMarca] No se pudo cargar config:", e.message);
+}
+
 // ─── MagicINFO helpers ────────────────────────────────────────────────────────
 // In-memory excluded set (synced from Redis on start + mutations)
 let excludedIds = new Set();
@@ -81,6 +95,37 @@ async function saveExcluded() {
   try {
     await redis.set("netwatch:bosque:excluded", JSON.stringify([...excludedIds]));
   } catch(e) { console.error("[Excluded] save:", e.message); }
+}
+
+// ─── Cambio de marca set (manual additions via UI) ────────────────────────────
+let brandChangeIds = new Set();
+
+async function loadBrandChange() {
+  try {
+    const raw = await redis.get("netwatch:bosque:brand-change");
+    brandChangeIds = new Set(raw ? JSON.parse(raw) : []);
+  } catch { brandChangeIds = new Set(); }
+}
+async function saveBrandChange() {
+  try {
+    await redis.set("netwatch:bosque:brand-change", JSON.stringify([...brandChangeIds]));
+  } catch(e) { console.error("[BrandChange] save:", e.message); }
+}
+
+// Detecta por nombre de grupo O por JSON config (auto)
+function isBrandChangeByConfig(device) {
+  const group = (device.groupName || device.group || "").toLowerCase().replace(/[\s]+/g, "_");
+  if (group.includes("cambio_de_marca")) return true;
+  const name = (device.deviceName || "").toLowerCase();
+  const mac  = (device.macAddress  || "").toLowerCase();
+  return CM_NAMES.has(name) || CM_MACS.has(mac);
+}
+
+// Detecta por config O por lista manual Redis
+function isBrandChange(device) {
+  if (isBrandChangeByConfig(device)) return true;
+  const id = device.deviceId || device.macAddress;
+  return brandChangeIds.has(id);
 }
 
 function shouldIgnoreDevice(device) {
@@ -179,8 +224,8 @@ async function detectChanges(serverKey, devices) {
     const group = d.groupName || "Sin grupo";
     const online = isOnline(d);
 
-    // Silenciar alertas para dispositivos excluidos (grupo o manual)
-    if (shouldIgnoreDevice(d) || isManuallyExcluded(d)) { prevStates[id] = online; return; }
+    // Silenciar alertas para dispositivos excluidos (grupo, manual o cambio de marca)
+    if (shouldIgnoreDevice(d) || isManuallyExcluded(d) || isBrandChange(d)) { prevStates[id] = online; return; }
 
     if (prevStates[id] !== undefined && prevStates[id] !== online) {
       alerts.unshift({
@@ -235,6 +280,8 @@ async function start() {
   console.log("[Redis] Conectado");
   await loadExcluded();
   console.log(`[Excluded] ${excludedIds.size} pantallas excluidas cargadas`);
+  await loadBrandChange();
+  console.log(`[BrandChange] ${brandChangeIds.size} pantallas "Cambio de marca" manuales cargadas`);
   await pollAll();
   setInterval(pollAll, 5 * 60 * 1000);
 }
@@ -273,11 +320,18 @@ app.get("/api/devices", async (req, res) => {
           s.devicesCacheTime = Date.now();
         }
         // Tag devices with exclusion flags; include all so frontend controls visibility
-        const taggedDevices = devices.map(d => ({
-          ...d,
-          _groupExcluded:  key === "bosque" && shouldIgnoreDevice(d),
-          _manualExcluded: key === "bosque" && isManuallyExcluded(d),
-        }));
+        const taggedDevices = devices.map(d => {
+          const isBosque = key === "bosque";
+          const byConf   = isBosque && isBrandChangeByConfig(d);
+          const byManual = isBosque && brandChangeIds.has(d.deviceId || d.macAddress);
+          return {
+            ...d,
+            _groupExcluded:       isBosque && shouldIgnoreDevice(d),
+            _manualExcluded:      isBosque && isManuallyExcluded(d),
+            _brandChange:         byConf || byManual,
+            _brandChangeManual:   byManual && !byConf,   // puede quitarse vía UI
+          };
+        });
         results[key] = {
           ok: true,
           label: cfg.label,
@@ -377,6 +431,30 @@ app.delete("/api/excluded/:deviceId", async (req, res) => {
   excludedIds.delete(deviceId);
   await saveExcluded();
   res.json({ ok: true, excluded: [...excludedIds] });
+});
+
+// ─── Cambio de marca API (Bosque only) ───────────────────────────────────────
+
+// GET /api/brand-change — list brand-change device IDs (manual only)
+app.get("/api/brand-change", async (req, res) => {
+  res.json({ ok: true, brandChange: [...brandChangeIds] });
+});
+
+// POST /api/brand-change { deviceId } — add to brand-change
+app.post("/api/brand-change", async (req, res) => {
+  const { deviceId } = req.body;
+  if (!deviceId) return res.status(400).json({ ok: false, error: "deviceId requerido" });
+  brandChangeIds.add(deviceId);
+  await saveBrandChange();
+  res.json({ ok: true, brandChange: [...brandChangeIds] });
+});
+
+// DELETE /api/brand-change/:deviceId — remove from brand-change
+app.delete("/api/brand-change/:deviceId", async (req, res) => {
+  const { deviceId } = req.params;
+  brandChangeIds.delete(deviceId);
+  await saveBrandChange();
+  res.json({ ok: true, brandChange: [...brandChangeIds] });
 });
 
 app.listen(PORT, () =>

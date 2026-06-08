@@ -1646,8 +1646,10 @@ function deviceToScreen(d, serverKey) {
     mac:      d.macAddress || '—',
     res:      '—',
     state:         isOnline(d) ? 'online' : 'offline',
-    groupExcluded:  d._groupExcluded  === true,
-    manualExcluded: d._manualExcluded === true,
+    groupExcluded:       d._groupExcluded       === true,
+    manualExcluded:      d._manualExcluded      === true,
+    brandChange:         d._brandChange         === true,
+    brandChangeManual:   d._brandChangeManual   === true,
     sinceMin: 0,
     play:     '—',
     server:   serverKey,
@@ -1692,6 +1694,7 @@ function App() {
   const [allAlertsData,  setAllAlertsData]  = useState([]);
   const [showExcluded,      setShowExcluded]      = useState(false);
   const [showNoConsiderar,  setShowNoConsiderar]  = useState(false);
+  const [showBrandChange,   setShowBrandChange]   = useState(false);
 
   async function loadData() {
     setLoading(true);
@@ -1730,11 +1733,13 @@ function App() {
     ? [...(allScreensData.bosque || []), ...(allScreensData.callecalle || [])]
     : (allScreensData[serverKey] || []);
 
-  // showExcluded: muestra excluidas manuales en Screens
+  // showExcluded:     muestra excluidas manuales en Screens
   // showNoConsiderar: suma "no considerar" a los contadores de Home
+  // showBrandChange:  suma "cambio de marca" a los contadores de Home
   const screens = rawScreens.filter(s =>
-    (showNoConsiderar || !s.groupExcluded) &&
-    (showExcluded     || !s.manualExcluded)
+    (showNoConsiderar || !s.groupExcluded)  &&
+    (showExcluded     || !s.manualExcluded) &&
+    (showBrandChange  || !s.brandChange)
   );
 
   const feed = serverKey === 'both'
@@ -1744,8 +1749,8 @@ function App() {
   const total   = screens.length;
   const online  = screens.filter(s => s.state === 'online').length;
   const offline = screens.filter(s => s.state === 'offline').length;
-  // Currently Offline nunca muestra "no considerar" aunque el toggle esté ON
-  const offlineScreens = screens.filter(s => s.state === 'offline' && !s.groupExcluded);
+  // Currently Offline nunca muestra "no considerar" ni "cambio de marca" aunque los toggles estén ON
+  const offlineScreens = screens.filter(s => s.state === 'offline' && !s.groupExcluded && !s.brandChange);
 
   const rootCls = `me-root me-theme-${t.theme} me-density-${t.density} me-layout-${t.layout}`;
 
@@ -1763,11 +1768,16 @@ function App() {
           online={online} offline={offline} total={total}
           showNoConsiderar={showNoConsiderar} setShowNoConsiderar={setShowNoConsiderar}
           noConsiderarCount={rawScreens.filter(s => s.groupExcluded).length}
+          showBrandChange={showBrandChange} setShowBrandChange={setShowBrandChange}
+          brandChangeCount={rawScreens.filter(s => s.brandChange).length}
           search={search}
         />
       )}
       {active === 'Screens' && (
-        <ScreensView screens={screens} allScreensData={allScreensData} showExcluded={showExcluded} setShowExcluded={setShowExcluded} search={search} layout={t.layout} online={online} offline={offline} total={total} />
+        <ScreensView screens={screens} allScreensData={allScreensData}
+          showExcluded={showExcluded} setShowExcluded={setShowExcluded}
+          showBrandChange={showBrandChange} setShowBrandChange={setShowBrandChange}
+          search={search} layout={t.layout} online={online} offline={offline} total={total} />
       )}
       {active === 'Reports' && (
         <ReportsView screens={screens} feed={feed} online={online} offline={offline} total={total} />
@@ -1815,7 +1825,10 @@ function TweaksPanelSimple({ theme, density, layout, setTweak }) {
 // ──────────────────────────────────────────────────────────────
 // Home view — live operations: offline tiles + event log
 // ──────────────────────────────────────────────────────────────
-function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0, showNoConsiderar=false, setShowNoConsiderar, noConsiderarCount=0, search='' }) {
+function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0,
+  showNoConsiderar=false, setShowNoConsiderar, noConsiderarCount=0,
+  showBrandChange=false, setShowBrandChange, brandChangeCount=0,
+  search='' }) {
   const q = search.trim().toLowerCase();
 
   const visibleOffline = useMemo(() => {
@@ -1842,8 +1855,9 @@ function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0,
     <div className="me-view me-view-home">
       <KpiStrip screens={screens} online={online} offline={offline} total={total} />
 
-      {/* Toggle "No Considerar" */}
-      <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 22px',borderBottom:'1px solid var(--me-border)',background:'var(--me-card)'}}>
+      {/* Toggles de grupos excluidos */}
+      <div style={{display:'flex',alignItems:'center',gap:12,padding:'6px 22px',borderBottom:'1px solid var(--me-border)',background:'var(--me-card)',flexWrap:'wrap'}}>
+        {/* No Considerar */}
         <button
           onClick={() => setShowNoConsiderar && setShowNoConsiderar(v => !v)}
           style={{display:'inline-flex',alignItems:'center',gap:7,padding:'4px 12px',fontSize:11,fontWeight:600,
@@ -1856,9 +1870,28 @@ function HomeView({ offlineScreens, feed, screens, online=0, offline=0, total=0,
           {showNoConsiderar ? 'Incluir "No Considerar"' : 'Excluir "No Considerar"'}
         </button>
         {noConsiderarCount > 0 && (
+          <span style={{fontSize:11,color:'#9ca3af',marginRight:8}}>
+            {noConsiderarCount} pantalla{noConsiderarCount!==1?'s':''}
+            {showNoConsiderar ? ' · sumadas' : ' · ocultas'}
+          </span>
+        )}
+
+        {/* Cambio de marca */}
+        <button
+          onClick={() => setShowBrandChange && setShowBrandChange(v => !v)}
+          style={{display:'inline-flex',alignItems:'center',gap:7,padding:'4px 12px',fontSize:11,fontWeight:600,
+            borderRadius:20,cursor:'pointer',border:'1.5px solid',transition:'all .15s',
+            background:   showBrandChange ? '#ede9fe' : '#f9fafb',
+            color:        showBrandChange ? '#5b21b6' : '#6b7280',
+            borderColor:  showBrandChange ? '#a78bfa' : '#d1d5db'}}
+        >
+          <span style={{fontSize:13,lineHeight:1}}>{showBrandChange ? '●' : '○'}</span>
+          {showBrandChange ? 'Incluir "Cambio de marca"' : 'Excluir "Cambio de marca"'}
+        </button>
+        {brandChangeCount > 0 && (
           <span style={{fontSize:11,color:'#9ca3af'}}>
-            {noConsiderarCount} pantalla{noConsiderarCount!==1?'s':''} en lista "No Considerar"
-            {showNoConsiderar ? ' · sumadas al total' : ' · ocultas de los contadores'}
+            {brandChangeCount} pantalla{brandChangeCount!==1?'s':''}
+            {showBrandChange ? ' · sumadas' : ' · ocultas'}
           </span>
         )}
       </div>
@@ -1982,6 +2015,16 @@ async function excludeDevice(deviceId) {
 async function includeDevice(deviceId) {
   await fetch(`/api/excluded/${encodeURIComponent(deviceId)}`, { method: 'DELETE' });
 }
+async function brandChangeDevice(deviceId) {
+  await fetch('/api/brand-change', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId }),
+  });
+}
+async function unbrandChangeDevice(deviceId) {
+  await fetch(`/api/brand-change/${encodeURIComponent(deviceId)}`, { method: 'DELETE' });
+}
 
 // ──────────────────────────────────────────────────────────────
 // Mini donut (SVG inline, sin dependencias)
@@ -2092,14 +2135,15 @@ async function exportScreensPDF(filtered, chartsRef) {
 // ──────────────────────────────────────────────────────────────
 // ScreensView
 // ──────────────────────────────────────────────────────────────
-function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, search, layout, online, offline, total }) {
-  const bosqueAll      = allScreensData?.bosque     || [];
-  const callecalleAll  = allScreensData?.callecalle || [];
-  const bosqueActive   = bosqueAll.filter(s => !s.groupExcluded && !s.manualExcluded);
+function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, showBrandChange, setShowBrandChange, search, layout, online, offline, total }) {
+  const bosqueAll       = allScreensData?.bosque     || [];
+  const callecalleAll   = allScreensData?.callecalle || [];
+  const bosqueActive    = bosqueAll.filter(s => !s.groupExcluded && !s.manualExcluded && !s.brandChange);
   const bosqueExcGroup  = bosqueAll.filter(s => s.groupExcluded);
   const bosqueExcManual = bosqueAll.filter(s => s.manualExcluded && !s.groupExcluded);
   const totalExcluded   = bosqueExcGroup.length + bosqueExcManual.length;
   const excludedScreens = bosqueAll.filter(s => s.groupExcluded || s.manualExcluded);
+  const bosqueBrandChange = bosqueAll.filter(s => s.brandChange);
   const [pending, setPending] = useState(null);
 
   // Tabla dinámica: filtros + orden
@@ -2152,6 +2196,16 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
     await includeDevice(screen.id);
     window.location.reload();
   }
+  async function handleBrandChange(screen) {
+    setPending(screen.id);
+    await brandChangeDevice(screen.id);
+    window.location.reload();
+  }
+  async function handleUnbrandChange(screen) {
+    setPending(screen.id);
+    await unbrandChangeDevice(screen.id);
+    window.location.reload();
+  }
 
   const bOnline  = bosqueActive.filter(s => s.state === 'online').length;
   const bOffline = bosqueActive.filter(s => s.state === 'offline').length;
@@ -2194,8 +2248,9 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
         </div>
       </div>
 
-      {/* ── Toggle excluidas ── */}
-      <div style={{padding:'12px 20px 0',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+      {/* ── Toggles de grupos especiales ── */}
+      <div style={{padding:'12px 20px 0',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+        {/* Excluidas */}
         <button onClick={() => setShowExcluded(v => !v)}
           style={{padding:'5px 14px',fontSize:11,fontWeight:600,borderRadius:20,cursor:'pointer',border:'1.5px solid',
             background:showExcluded?'#fef3c7':'#f9fafb', color:showExcluded?'#92400e':'#6b7280',
@@ -2203,9 +2258,21 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
           {showExcluded ? '✓ Mostrando excluidas' : '○ Mostrar excluidas'}
         </button>
         {totalExcluded > 0 && (
-          <span style={{fontSize:11,color:'#9ca3af'}}>
+          <span style={{fontSize:11,color:'#9ca3af',marginRight:8}}>
             {totalExcluded} excluida{totalExcluded!==1?'s':''} de Bosque
             &nbsp;({bosqueExcGroup.length} por grupo · {bosqueExcManual.length} manual{bosqueExcManual.length!==1?'es':''})
+          </span>
+        )}
+        {/* Cambio de marca */}
+        <button onClick={() => setShowBrandChange(v => !v)}
+          style={{padding:'5px 14px',fontSize:11,fontWeight:600,borderRadius:20,cursor:'pointer',border:'1.5px solid',
+            background:showBrandChange?'#ede9fe':'#f9fafb', color:showBrandChange?'#5b21b6':'#6b7280',
+            borderColor:showBrandChange?'#a78bfa':'#d1d5db'}}>
+          {showBrandChange ? '✓ Mostrando cambio de marca' : '○ Mostrar cambio de marca'}
+        </button>
+        {bosqueBrandChange.length > 0 && (
+          <span style={{fontSize:11,color:'#9ca3af'}}>
+            {bosqueBrandChange.length} pantalla{bosqueBrandChange.length!==1?'s':''} · Bosque
           </span>
         )}
       </div>
@@ -2242,6 +2309,55 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
                               opacity:pending===s.id?0.5:1}}>↩ Reincorporar</button>
                         ) : (
                           <span style={{fontSize:10,color:'#d1d5db'}}>Excluida por grupo</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Tabla cambio de marca ── */}
+      {showBrandChange && bosqueBrandChange.length > 0 && (
+        <div style={{padding:'12px 20px 0'}}>
+          <Card title={`Pantallas "Cambio de marca" · ${bosqueBrandChange.length}`}
+            headerRight={<span style={{fontSize:11,color:'#9ca3af'}}>Solo Bosque · fuera de contadores</span>}>
+            <div style={{overflowX:'auto'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                <thead><tr style={{borderBottom:'1px solid #e5e7eb'}}>
+                  {['Nombre','Grupo','Estado','IP','Origen','Acción'].map(h=>(
+                    <th key={h} style={{padding:'8px 12px',textAlign:'left',color:'#6b7280',fontWeight:500,fontSize:11}}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {bosqueBrandChange.map(s=>(
+                    <tr key={s.id} style={{borderBottom:'1px solid #f3f4f6'}}>
+                      <td style={{padding:'8px 12px',fontFamily:'monospace',fontSize:11}}>{s.name}</td>
+                      <td style={{padding:'8px 12px',color:'#6b7280',fontSize:11}}>{s.loc}</td>
+                      <td style={{padding:'8px 12px'}}>
+                        <span style={{fontSize:10,padding:'2px 7px',borderRadius:10,
+                          background:s.state==='online'?'#dcfce7':'#fee2e2',
+                          color:s.state==='online'?'#166534':'#991b1b'}}>{s.state}</span>
+                      </td>
+                      <td style={{padding:'8px 12px',fontFamily:'monospace',fontSize:11,color:'#6b7280'}}>{s.ip}</td>
+                      <td style={{padding:'8px 12px',fontSize:11}}>
+                        <span style={{fontSize:10,padding:'2px 8px',borderRadius:10,
+                          background: s.brandChangeManual ? '#f5f3ff' : '#ede9fe',
+                          color:'#5b21b6'}}>
+                          {s.brandChangeManual ? 'Manual' : 'Auto'}
+                        </span>
+                      </td>
+                      <td style={{padding:'8px 12px'}}>
+                        {s.brandChangeManual ? (
+                          <button onClick={()=>handleUnbrandChange(s)} disabled={pending===s.id}
+                            style={{fontSize:10,padding:'3px 10px',borderRadius:5,cursor:'pointer',
+                              border:'1px solid #16a34a',background:'#f0fdf4',color:'#166534',
+                              opacity:pending===s.id?0.5:1}}>↩ Reintegrar</button>
+                        ) : (
+                          <span style={{fontSize:10,color:'#c4b5fd'}}>Detectada por grupo</span>
                         )}
                       </td>
                     </tr>
@@ -2344,10 +2460,16 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
                     </td>
                     <td style={{padding:'8px 12px'}}>
                       {s.server==='bosque' && (
-                        <button onClick={() => handleExclude(s)} disabled={pending===s.id}
-                          style={{fontSize:10,padding:'2px 8px',borderRadius:5,cursor:'pointer',
-                            border:'1px solid #e5e7eb',background:'#f9fafb',color:'#9ca3af',
-                            opacity:pending===s.id?0.5:1}}>⊘ Excluir</button>
+                        <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+                          <button onClick={() => handleExclude(s)} disabled={pending===s.id}
+                            style={{fontSize:10,padding:'2px 8px',borderRadius:5,cursor:'pointer',
+                              border:'1px solid #e5e7eb',background:'#f9fafb',color:'#9ca3af',
+                              opacity:pending===s.id?0.5:1}}>⊘ Excluir</button>
+                          <button onClick={() => handleBrandChange(s)} disabled={pending===s.id}
+                            style={{fontSize:10,padding:'2px 8px',borderRadius:5,cursor:'pointer',
+                              border:'1px solid #a78bfa',background:'#f5f3ff',color:'#5b21b6',
+                              opacity:pending===s.id?0.5:1}}>🏷 C.Marca</button>
+                        </div>
                       )}
                     </td>
                   </tr>
