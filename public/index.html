@@ -2157,6 +2157,102 @@ function exportOfflineExcel(offlineScreens) {
 }
 
 // ──────────────────────────────────────────────────────────────
+// Excel export — Inventario completo (3 hojas)
+// ──────────────────────────────────────────────────────────────
+function exportExcel(allScreensData) {
+  if (!window.XLSX) { alert('Librería Excel no disponible'); return; }
+  const XLSX = window.XLSX;
+
+  const tipoLabel = t => ({ propia: 'Adm. Propia', franquicia: 'Franquicia', sin_clasificar: 'Sin clasificar' }[t] || 'Sin clasificar');
+  const srvLabel  = s => s === 'bosque' ? 'Bosque' : 'Callecalle';
+
+  function exclusionLabel(s) {
+    if (s.groupExcluded)  return 'Excluida por grupo';
+    if (s.manualExcluded) return 'Excluida manual';
+    if (s.brandChange)    return 'Cambio de marca';
+    return 'Activa';
+  }
+
+  function codigoTienda(name) {
+    const m = (name || '').match(/^(\d+)/);
+    return m ? m[1] : '—';
+  }
+
+  // Todas las pantallas de ambos servidores sin ningún filtro
+  const allScreens = [
+    ...(allScreensData.bosque     || []),
+    ...(allScreensData.callecalle || []),
+  ];
+
+  // ── Hoja 1: Inventario Completo ──────────────────────────────
+  const h1cols = ['Código Tienda','Tipo','Nombre','Grupo completo','Servidor','Estado','IP','MAC','Modelo','Exclusión'];
+  const h1rows = allScreens.map(s => ({
+    'Código Tienda': codigoTienda(s.name),
+    'Tipo':          tipoLabel(s.tipoTienda),
+    'Nombre':        s.name,
+    'Grupo completo':s.loc,
+    'Servidor':      srvLabel(s.server),
+    'Estado':        s.state === 'online' ? 'Online' : 'Offline',
+    'IP':            s.ip,
+    'MAC':           s.mac,
+    'Modelo':        s.model,
+    'Exclusión':     exclusionLabel(s),
+  }));
+  const ws1 = XLSX.utils.json_to_sheet(h1rows, { header: h1cols });
+  ws1['!cols'] = [8,16,32,40,12,10,16,20,14,20].map(w => ({ wch: w }));
+
+  // ── Hoja 2: Resumen por Servidor ─────────────────────────────
+  function serverStats(screens) {
+    const total   = screens.length;
+    const online  = screens.filter(s => s.state === 'online').length;
+    const offline = screens.filter(s => s.state === 'offline').length;
+    const pct     = total > 0 ? (online / total * 100).toFixed(1) + '%' : '—';
+    const propia  = screens.filter(s => s.tipoTienda === 'propia').length;
+    const franq   = screens.filter(s => s.tipoTienda === 'franquicia').length;
+    const excl    = screens.filter(s => s.groupExcluded || s.manualExcluded || s.brandChange).length;
+    return { total, online, offline, pct, propia, franq, excl };
+  }
+  const bStats = serverStats(allScreensData.bosque     || []);
+  const cStats = serverStats(allScreensData.callecalle || []);
+  const tStats = serverStats(allScreens);
+  const h2cols = ['Servidor','Total pantallas','Online','Offline','% Disponibilidad','Adm. Propia','Franquicia','Excluidas'];
+  const h2rows = [
+    { 'Servidor':'Bosque',    'Total pantallas':bStats.total, 'Online':bStats.online, 'Offline':bStats.offline, '% Disponibilidad':bStats.pct, 'Adm. Propia':bStats.propia, 'Franquicia':bStats.franq, 'Excluidas':bStats.excl },
+    { 'Servidor':'Callecalle','Total pantallas':cStats.total, 'Online':cStats.online, 'Offline':cStats.offline, '% Disponibilidad':cStats.pct, 'Adm. Propia':cStats.propia, 'Franquicia':cStats.franq, 'Excluidas':cStats.excl },
+    { 'Servidor':'Total',     'Total pantallas':tStats.total, 'Online':tStats.online, 'Offline':tStats.offline, '% Disponibilidad':tStats.pct, 'Adm. Propia':tStats.propia, 'Franquicia':tStats.franq, 'Excluidas':tStats.excl },
+  ];
+  const ws2 = XLSX.utils.json_to_sheet(h2rows, { header: h2cols });
+  ws2['!cols'] = [14,16,10,10,18,14,12,12].map(w => ({ wch: w }));
+
+  // ── Hoja 3: Offline Ahora ────────────────────────────────────
+  const offlineNow = allScreens.filter(s =>
+    s.state === 'offline' && !s.groupExcluded && !s.manualExcluded && !s.brandChange
+  );
+  const h3rows = offlineNow.map(s => ({
+    'Código Tienda': codigoTienda(s.name),
+    'Tipo':          tipoLabel(s.tipoTienda),
+    'Nombre':        s.name,
+    'Grupo completo':s.loc,
+    'Servidor':      srvLabel(s.server),
+    'Estado':        'Offline',
+    'IP':            s.ip,
+    'MAC':           s.mac,
+    'Modelo':        s.model,
+    'Exclusión':     exclusionLabel(s),
+  }));
+  const ws3 = XLSX.utils.json_to_sheet(h3rows, { header: h1cols });
+  ws3['!cols'] = ws1['!cols'];
+
+  // ── Armar workbook ───────────────────────────────────────────
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws1, 'Inventario Completo');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Resumen por Servidor');
+  XLSX.utils.book_append_sheet(wb, ws3, 'Offline Ahora');
+
+  XLSX.writeFile(wb, `netwatch_inventario_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// ──────────────────────────────────────────────────────────────
 // PDF export
 // ──────────────────────────────────────────────────────────────
 async function exportScreensPDF(filtered, chartsRef) {
@@ -2473,6 +2569,11 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
             <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
               <span className="me-card-stat me-card-stat-ok"><span className="me-state-dot"/> {online} online</span>
               <span className="me-card-stat me-card-stat-crit"><span className="me-state-dot"/> {offline} offline</span>
+              <button onClick={() => exportExcel(allScreensData)}
+                style={{padding:'4px 10px',fontSize:11,fontWeight:600,borderRadius:5,
+                  border:'1.5px solid #16a34a',background:'#f0fdf4',color:'#16a34a',cursor:'pointer'}}>
+                ↓ Excel
+              </button>
               <button onClick={() => exportScreensPDF(filtered, chartsRef)}
                 style={{padding:'4px 10px',fontSize:11,fontWeight:600,borderRadius:5,
                   border:'1.5px solid #dc2626',background:'#fef2f2',color:'#dc2626',cursor:'pointer'}}>
