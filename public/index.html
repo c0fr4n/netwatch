@@ -1798,7 +1798,7 @@ function App() {
           search={search} layout={t.layout} online={online} offline={offline} total={total} />
       )}
       {active === 'Reports' && (
-        <ReportsView screens={screens} feed={feed} online={online} offline={offline} total={total} />
+        <ReportsView screens={screens} feed={feed} online={online} offline={offline} total={total} allScreensData={allScreensData} />
       )}
 
       <TweaksPanelSimple theme={t.theme} density={t.density} layout={t.layout} setTweak={setTweak} />
@@ -2757,36 +2757,166 @@ function ScreenInventoryWithExclude({ screens, search, onExclude, pending }) {
   return null;
 }
 // ──────────────────────────────────────────────────────────────
-// Reports view — quick stats summary
+// Excel export — snapshot histórico de una fecha
 // ──────────────────────────────────────────────────────────────
-function ReportsView({ screens, feed, online, offline, total }) {
-  const byKind = useMemo(() => {
-    const counts = {};
-    screens.forEach(s => {
-      if (!counts[s.kind]) counts[s.kind] = { online: 0, offline: 0, total: 0 };
-      counts[s.kind][s.state]++;
-      counts[s.kind].total++;
-    });
-    return counts;
-  }, [screens]);
+function exportSnapshotExcel(snapshot) {
+  if (!window.XLSX) { alert('Librería Excel no disponible'); return; }
+  const XLSX = window.XLSX;
+  const tipoLabel = t => ({ propia: 'Adm. Propia', franquicia: 'Franquicia', sin_clasificar: 'Sin clasificar' }[t] || 'Sin clasificar');
+  const srvLabel  = s => s === 'bosque' ? 'Bosque' : 'Callecalle';
+  const codigo    = n => { const m = (n || '').match(/^(\d+)/); return m ? m[1] : '—'; };
 
-  const byLoc = useMemo(() => {
-    const counts = {};
-    screens.forEach(s => {
-      const top = s.loc.split('·')[0].trim();
-      if (!counts[top]) counts[top] = { online: 0, offline: 0, total: 0 };
-      counts[top][s.state]++;
-      counts[top].total++;
-    });
-    return counts;
-  }, [screens]);
+  // Hoja 1: Inventario de la fecha
+  const h1cols = ['Código Tienda','Tipo','Nombre','Grupo completo','Servidor','Estado','IP','MAC','Modelo','Exclusión'];
+  const h1rows = snapshot.devices.map(d => ({
+    'Código Tienda': codigo(d.n),
+    'Tipo':          tipoLabel(getTipoTienda(d.n)),
+    'Nombre':        d.n,
+    'Grupo completo':d.g,
+    'Servidor':      srvLabel(d.s),
+    'Estado':        d.on ? 'Online' : 'Offline',
+    'IP':            d.ip,
+    'MAC':           d.mac,
+    'Modelo':        d.mo,
+    'Exclusión':     d.ex ? 'Excluida' : 'Activa',
+  }));
+  const ws1 = XLSX.utils.json_to_sheet(h1rows, { header: h1cols });
+  ws1['!cols'] = [8,16,32,40,12,10,16,20,14,12].map(w => ({ wch: w }));
 
-  const disconnects24h = feed.filter(f => f.kind === 'offline').length;
-  const reconnects24h  = feed.filter(f => f.kind === 'online').length;
-  const availability   = ((online / total) * 100).toFixed(1);
+  // Hoja 2: Resumen por Servidor de la fecha
+  function st(devs) {
+    const total = devs.length;
+    const online = devs.filter(d => d.on).length;
+    const offline = total - online;
+    const pct = total > 0 ? (online / total * 100).toFixed(1) + '%' : '—';
+    const propia = devs.filter(d => getTipoTienda(d.n) === 'propia').length;
+    const franq  = devs.filter(d => getTipoTienda(d.n) === 'franquicia').length;
+    const excl   = devs.filter(d => d.ex).length;
+    return { total, online, offline, pct, propia, franq, excl };
+  }
+  const bDevs = snapshot.devices.filter(d => d.s === 'bosque');
+  const cDevs = snapshot.devices.filter(d => d.s === 'callecalle');
+  const mk = (label, x) => ({ 'Servidor':label, 'Total pantallas':x.total, 'Online':x.online, 'Offline':x.offline,
+    '% Disponibilidad':x.pct, 'Adm. Propia':x.propia, 'Franquicia':x.franq, 'Excluidas':x.excl });
+  const ws2 = XLSX.utils.json_to_sheet([
+    mk('Bosque', st(bDevs)), mk('Callecalle', st(cDevs)), mk('Total', st(snapshot.devices)),
+  ], { header: ['Servidor','Total pantallas','Online','Offline','% Disponibilidad','Adm. Propia','Franquicia','Excluidas'] });
+  ws2['!cols'] = [14,16,10,10,18,14,12,12].map(w => ({ wch: w }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws1, 'Inventario');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Resumen por Servidor');
+  XLSX.writeFile(wb, `netwatch_inventario_${snapshot.date}.xlsx`);
+}
+
+// ──────────────────────────────────────────────────────────────
+// Histórico por fecha — selector + resumen + descarga Excel
+// ──────────────────────────────────────────────────────────────
+function HistoricoCard() {
+  const [dates,    setDates]    = useState([]);
+  const [selDate,  setSelDate]  = useState('');
+  const [snapshot, setSnapshot] = useState(null);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState('');
+
+  useEffect(() => {
+    fetch('/api/snapshots')
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok && d.dates.length > 0) {
+          setDates(d.dates);
+          setSelDate(d.dates[d.dates.length - 1]); // más reciente
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!selDate) return;
+    setLoading(true); setError(''); setSnapshot(null);
+    fetch(`/api/snapshots/${selDate}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) setSnapshot(d.snapshot);
+        else setError(d.error || 'Error al cargar');
+      })
+      .catch(() => setError('Error de conexión'))
+      .finally(() => setLoading(false));
+  }, [selDate]);
+
+  const fmtFecha = iso => {
+    const [y,m,dd] = iso.split('-');
+    return `${dd}-${m}-${y}`;
+  };
+
+  let resumen = null;
+  if (snapshot) {
+    const devs = snapshot.devices;
+    const online = devs.filter(d => d.on).length;
+    resumen = {
+      total: devs.length, online, offline: devs.length - online,
+      pct: devs.length > 0 ? (online / devs.length * 100).toFixed(1) : '—',
+      hora: new Date(snapshot.ts).toLocaleTimeString('es-CL', { timeZone:'America/Santiago', hour:'2-digit', minute:'2-digit' }),
+    };
+  }
 
   return (
-    <div className="me-view me-view-reports">
+    <Card title="Histórico por fecha"
+      headerRight={<span style={{fontSize:11,color:'#9ca3af'}}>{dates.length} día{dates.length!==1?'s':''} con datos</span>}>
+      <div className="me-card-pad" style={{display:'flex',flexDirection:'column',gap:14}}>
+        {dates.length === 0 ? (
+          <div style={{color:'#9ca3af',fontSize:12,padding:'12px 0'}}>
+            Aún no hay snapshots guardados. El historial comienza a acumularse desde hoy —
+            cada día queda registrado el último estado de todas las pantallas.
+          </div>
+        ) : (
+          <>
+            <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+              <label style={{fontSize:12,color:'#6b7280',fontWeight:600}}>Fecha:</label>
+              <select value={selDate} onChange={e => setSelDate(e.target.value)}
+                style={{padding:'5px 10px',fontSize:12,border:'1px solid #d1d5db',borderRadius:6,
+                  background:'#fff',color:'#2d3540',cursor:'pointer'}}>
+                {[...dates].reverse().map(d => (
+                  <option key={d} value={d}>{fmtFecha(d)}</option>
+                ))}
+              </select>
+              <button onClick={() => snapshot && exportSnapshotExcel(snapshot)}
+                disabled={!snapshot || loading}
+                style={{padding:'5px 14px',fontSize:12,fontWeight:600,borderRadius:6,cursor:'pointer',
+                  border:'1.5px solid #16a34a',background:'#f0fdf4',color:'#16a34a',
+                  opacity: (!snapshot || loading) ? 0.5 : 1}}>
+                ↓ Excel
+              </button>
+            </div>
+            {loading && <div style={{fontSize:12,color:'#9ca3af'}}>Cargando…</div>}
+            {error   && <div style={{fontSize:12,color:'#dc4f4f'}}>{error}</div>}
+            {resumen && (
+              <div style={{display:'flex',gap:24,flexWrap:'wrap',fontSize:12,color:'#6b7280',
+                borderTop:'1px solid #eef1f5',paddingTop:12}}>
+                <span><b style={{color:'#2563eb'}}>{resumen.total.toLocaleString('es-CL')}</b> pantallas</span>
+                <span><b style={{color:'#16a34a'}}>{resumen.online.toLocaleString('es-CL')}</b> online</span>
+                <span><b style={{color:'#dc4f4f'}}>{resumen.offline.toLocaleString('es-CL')}</b> offline</span>
+                <span><b>{resumen.pct}%</b> disponibilidad</span>
+                <span style={{color:'#9ca3af'}}>último registro: {resumen.hora} hrs</span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Reports view — consolidado + histórico por fecha
+// ──────────────────────────────────────────────────────────────
+function ReportsView({ screens, feed, online, offline, total, allScreensData }) {
+  const disconnects24h = feed.filter(f => f.kind === 'offline').length;
+  const reconnects24h  = feed.filter(f => f.kind === 'online').length;
+  const availability   = total > 0 ? ((online / total) * 100).toFixed(1) : '—';
+
+  return (
+    <div className="me-view me-view-reports" style={{overflowY:'auto'}}>
       <div className="me-reports-stats">
         <div className="me-stat-block">
           <div className="me-stat-label">Availability (now)</div>
@@ -2810,34 +2940,16 @@ function ReportsView({ screens, feed, online, offline, total }) {
         </div>
       </div>
 
-      <div className="me-reports-grid">
-        <Card title="By Type">
-          <div className="me-rt-table">
-            <div className="me-rt-head"><span>Type</span><span>Online</span><span>Offline</span><span>Total</span></div>
-            {Object.entries(byKind).map(([k, v]) => (
-              <div key={k} className="me-rt-row">
-                <span className="me-rt-label">{({ indoor: 'Indoor', outdoor: 'Outdoor', videowall: 'Video Wall', kiosk: 'Kiosk' })[k] || k}</span>
-                <span className="me-rt-num me-stat-ok">{v.online}</span>
-                <span className="me-rt-num me-stat-crit">{v.offline}</span>
-                <span className="me-rt-num">{v.total}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
+      {/* ── Consolidado total de pantallas ── */}
+      <div style={{padding:'16px 20px 0'}}>
+        <ResumenServidorTable
+          bosqueAll={allScreensData?.bosque || []}
+          callecalleAll={allScreensData?.callecalle || []} />
+      </div>
 
-        <Card title="By Location">
-          <div className="me-rt-table">
-            <div className="me-rt-head"><span>Location</span><span>Online</span><span>Offline</span><span>Total</span></div>
-            {Object.entries(byLoc).map(([k, v]) => (
-              <div key={k} className="me-rt-row">
-                <span className="me-rt-label">{k}</span>
-                <span className="me-rt-num me-stat-ok">{v.online}</span>
-                <span className="me-rt-num me-stat-crit">{v.offline}</span>
-                <span className="me-rt-num">{v.total}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
+      {/* ── Histórico por fecha ── */}
+      <div style={{padding:'16px 20px 24px'}}>
+        <HistoricoCard />
       </div>
     </div>
   );

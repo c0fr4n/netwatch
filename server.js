@@ -272,6 +272,48 @@ async function pollServer(serverKey) {
 
 async function pollAll() {
   await Promise.allSettled(Object.keys(SERVERS).map(pollServer));
+  await saveDailySnapshot();
+}
+
+// ─── Daily snapshots (histórico por fecha) ────────────────────────────────────
+const SNAPSHOT_RETENTION_DAYS = 90;
+
+async function saveDailySnapshot() {
+  try {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" }); // YYYY-MM-DD
+    const devices = [];
+    for (const key of Object.keys(SERVERS)) {
+      (state[key].devicesCache || []).forEach((d) => {
+        devices.push({
+          n:   d.deviceName || "",
+          g:   d.groupName || "",
+          s:   key,
+          ip:  d.ipAddress || "",
+          mac: d.macAddress || "",
+          mo:  d.deviceModelName || "",
+          on:  isOnline(d) ? 1 : 0,
+          ex:  key === "bosque" && (shouldIgnoreDevice(d) || isManuallyExcluded(d) || isBrandChange(d)) ? 1 : 0,
+        });
+      });
+    }
+    if (devices.length === 0) return;
+
+    await saveToRedis(`netwatch:snapshot:${today}`, {
+      date: today,
+      ts: Date.now(),
+      devices,
+    });
+
+    let idx = (await loadFromRedis("netwatch:snapshots:index")) || [];
+    if (!idx.includes(today)) { idx.push(today); idx.sort(); }
+    while (idx.length > SNAPSHOT_RETENTION_DAYS) {
+      const old = idx.shift();
+      try { await redis.del(`netwatch:snapshot:${old}`); } catch {}
+    }
+    await saveToRedis("netwatch:snapshots:index", idx);
+  } catch (e) {
+    console.error("[Snapshot]", e.message);
+  }
 }
 
 // ─── Start ────────────────────────────────────────────────────────────────────
@@ -455,6 +497,25 @@ app.delete("/api/brand-change/:deviceId", async (req, res) => {
   brandChangeIds.delete(deviceId);
   await saveBrandChange();
   res.json({ ok: true, brandChange: [...brandChangeIds] });
+});
+
+// ─── Snapshots API (histórico por fecha) ──────────────────────────────────────
+
+// GET /api/snapshots — fechas con snapshot disponible
+app.get("/api/snapshots", async (req, res) => {
+  const idx = (await loadFromRedis("netwatch:snapshots:index")) || [];
+  res.json({ ok: true, dates: idx });
+});
+
+// GET /api/snapshots/:date — datos completos de esa fecha (YYYY-MM-DD)
+app.get("/api/snapshots/:date", async (req, res) => {
+  const { date } = req.params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+    return res.status(400).json({ ok: false, error: "Formato de fecha inválido (YYYY-MM-DD)" });
+  const snap = await loadFromRedis(`netwatch:snapshot:${date}`);
+  if (!snap)
+    return res.status(404).json({ ok: false, error: "Sin datos para esa fecha" });
+  res.json({ ok: true, snapshot: snap });
 });
 
 app.listen(PORT, () =>
