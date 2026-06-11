@@ -1979,6 +1979,61 @@ function TipoBadge({ tipo }) {
 }
 
 // ──────────────────────────────────────────────────────────────
+// Resumen por Servidor — tabla estilo Hoja 2 del Excel
+// ──────────────────────────────────────────────────────────────
+function ResumenServidorTable({ bosqueAll, callecalleAll }) {
+  function stats(screens) {
+    const total   = screens.length;
+    const online  = screens.filter(s => s.state === 'online').length;
+    const offline = screens.filter(s => s.state === 'offline').length;
+    const pct     = total > 0 ? (online / total * 100).toFixed(1) + '%' : '—';
+    const propia  = screens.filter(s => s.tipoTienda === 'propia').length;
+    const franq   = screens.filter(s => s.tipoTienda === 'franquicia').length;
+    const excl    = screens.filter(s => s.groupExcluded || s.manualExcluded || s.brandChange).length;
+    return { total, online, offline, pct, propia, franq, excl };
+  }
+  const rows = [
+    { label: 'Bosque',     ...stats(bosqueAll) },
+    { label: 'Callecalle', ...stats(callecalleAll) },
+    { label: 'Total',      ...stats([...bosqueAll, ...callecalleAll]) },
+  ];
+  const headers = ['Servidor','Total','Online','Offline','% Disp.','Adm. Propia','Franquicia','Excluidas'];
+  const num = { fontVariantNumeric:'tabular-nums', textAlign:'right' };
+  return (
+    <div style={{background:'#fff',border:'1px solid #e4e7ec',borderRadius:8,padding:'14px 18px',
+      display:'flex',flexDirection:'column',justifyContent:'center',minWidth:0,overflowX:'auto'}}>
+      <div style={{fontSize:12,fontWeight:700,color:'#2d3540',marginBottom:10}}>Resumen por Servidor</div>
+      <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+        <thead>
+          <tr style={{borderBottom:'2px solid #e5e7eb'}}>
+            {headers.map((h,i)=>(
+              <th key={h} style={{padding:'6px 10px',fontSize:11,fontWeight:600,color:'#6b7280',
+                textAlign: i===0 ? 'left' : 'right', whiteSpace:'nowrap'}}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r=>(
+            <tr key={r.label} style={{borderBottom:'1px solid #f3f4f6',
+              fontWeight: r.label==='Total' ? 700 : 400,
+              background:  r.label==='Total' ? '#f8f9fb' : 'transparent'}}>
+              <td style={{padding:'7px 10px',whiteSpace:'nowrap'}}>{r.label}</td>
+              <td style={{padding:'7px 10px',...num}}>{r.total.toLocaleString('es-CL')}</td>
+              <td style={{padding:'7px 10px',...num,color:'#16a34a'}}>{r.online.toLocaleString('es-CL')}</td>
+              <td style={{padding:'7px 10px',...num,color:'#dc4f4f'}}>{r.offline.toLocaleString('es-CL')}</td>
+              <td style={{padding:'7px 10px',...num}}>{r.pct}</td>
+              <td style={{padding:'7px 10px',...num,color:'#1e40af'}}>{r.propia.toLocaleString('es-CL')}</td>
+              <td style={{padding:'7px 10px',...num,color:'#92400e'}}>{r.franq.toLocaleString('es-CL')}</td>
+              <td style={{padding:'7px 10px',...num,color:'#9ca3af'}}>{r.excl.toLocaleString('es-CL')}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
 // Server summary card — donut + kpis for one server
 // ──────────────────────────────────────────────────────────────
 function ServerSummaryCard({ label, screens }) {
@@ -2429,15 +2484,17 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
         <ServerSummaryCard label="Callecalle" screens={callecalleAll} />
       </div>
 
-      {/* ── Dos gráficos de torta ── */}
-      <div ref={chartsRef}
-        style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,padding:'16px 20px 0',maxWidth:480}}>
-        <div style={{background:'#fff',border:'1px solid #e4e7ec',borderRadius:8,padding:'16px 20px'}}>
-          <MiniDonut data={donutEstado}   title="Por estado" />
+      {/* ── Donuts + Resumen por Servidor ── */}
+      <div style={{display:'grid',gridTemplateColumns:'minmax(380px,480px) 1fr',gap:16,padding:'16px 20px 0',alignItems:'stretch'}}>
+        <div ref={chartsRef} style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+          <div style={{background:'#fff',border:'1px solid #e4e7ec',borderRadius:8,padding:'16px 20px'}}>
+            <MiniDonut data={donutEstado}   title="Por estado" />
+          </div>
+          <div style={{background:'#fff',border:'1px solid #e4e7ec',borderRadius:8,padding:'16px 20px'}}>
+            <MiniDonut data={donutServidor} title="Por servidor" />
+          </div>
         </div>
-        <div style={{background:'#fff',border:'1px solid #e4e7ec',borderRadius:8,padding:'16px 20px'}}>
-          <MiniDonut data={donutServidor} title="Por servidor" />
-        </div>
+        <ResumenServidorTable bosqueAll={bosqueAll} callecalleAll={callecalleAll} />
       </div>
 
       {/* ── Toggles de grupos especiales ── */}
