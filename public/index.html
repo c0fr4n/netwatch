@@ -2626,11 +2626,6 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
             <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
               <span className="me-card-stat me-card-stat-ok"><span className="me-state-dot"/> {online} online</span>
               <span className="me-card-stat me-card-stat-crit"><span className="me-state-dot"/> {offline} offline</span>
-              <button onClick={() => exportExcel(allScreensData)}
-                style={{padding:'4px 10px',fontSize:11,fontWeight:600,borderRadius:5,
-                  border:'1.5px solid #16a34a',background:'#f0fdf4',color:'#16a34a',cursor:'pointer'}}>
-                ↓ Excel
-              </button>
               <button onClick={() => exportScreensPDF(filtered, chartsRef)}
                 style={{padding:'4px 10px',fontSize:11,fontWeight:600,borderRadius:5,
                   border:'1.5px solid #dc2626',background:'#fef2f2',color:'#dc2626',cursor:'pointer'}}>
