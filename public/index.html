@@ -2128,6 +2128,127 @@ async function unbrandChangeDevice(deviceId) {
 // ──────────────────────────────────────────────────────────────
 // Mini donut (SVG inline, sin dependencias)
 // ──────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────
+// LineChart — gráfico de línea SVG (sin dependencias)
+// points: [{ x:'label', y:Number, sub:'tooltip' }]
+// ──────────────────────────────────────────────────────────────
+function LineChart({ points, color = '#3b9bf2', unit = '%' }) {
+  const W = 440, H = 190;
+  const padL = 34, padR = 14, padT = 14, padB = 28;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  if (!points || points.length === 0) {
+    return (
+      <div style={{height:H,display:'flex',alignItems:'center',justifyContent:'center',color:'#9ca3af',fontSize:12}}>
+        Aún no hay datos suficientes
+      </div>
+    );
+  }
+
+  const ys = points.map(p => p.y);
+  let yMin = Math.min(...ys), yMax = Math.max(...ys);
+  if (yMin === yMax) { yMin = Math.max(0, yMin - 5); yMax = Math.min(100, yMax + 5); }
+  else { const pad = (yMax - yMin) * 0.15; yMin = Math.max(0, yMin - pad); yMax = Math.min(100, yMax + pad); }
+  if (yMin === yMax) { yMin = 0; yMax = 100; }
+
+  const n = points.length;
+  const xAt = i => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+  const yAt = v => padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+
+  const coords = points.map((p, i) => ({ ...p, cx: xAt(i), cy: yAt(p.y) }));
+  const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.cx.toFixed(1)} ${c.cy.toFixed(1)}`).join(' ');
+  const areaPath = `${linePath} L ${coords[n-1].cx.toFixed(1)} ${padT+plotH} L ${coords[0].cx.toFixed(1)} ${padT+plotH} Z`;
+
+  // Y gridlines (3 niveles)
+  const yTicks = [yMin, (yMin + yMax) / 2, yMax];
+  // X labels: máx ~6 para no saturar
+  const xStep = Math.max(1, Math.ceil(n / 6));
+  const gid = 'lg' + color.replace('#', '');
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{display:'block'}}>
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stopColor={color} stopOpacity="0.22"/>
+          <stop offset="100%" stopColor={color} stopOpacity="0"/>
+        </linearGradient>
+      </defs>
+      {yTicks.map((t, i) => (
+        <g key={i}>
+          <line x1={padL} y1={yAt(t)} x2={W-padR} y2={yAt(t)} stroke="#eef1f5" strokeWidth="1"/>
+          <text x={padL-6} y={yAt(t)+3} textAnchor="end" style={{fontSize:9,fill:'#94a3b8'}}>
+            {t.toFixed(0)}{unit}
+          </text>
+        </g>
+      ))}
+      <path d={areaPath} fill={`url(#${gid})`} />
+      <path d={linePath} fill="none" stroke={color} strokeWidth="2"
+        strokeLinejoin="round" strokeLinecap="round"/>
+      {coords.map((c, i) => (
+        <circle key={i} cx={c.cx} cy={c.cy} r="2.6" fill="#fff" stroke={color} strokeWidth="1.6">
+          <title>{c.sub || `${c.x}: ${c.y}${unit}`}</title>
+        </circle>
+      ))}
+      {coords.map((c, i) => (i % xStep === 0 || i === n-1) && (
+        <text key={'x'+i} x={c.cx} y={H-9} textAnchor="middle" style={{fontSize:9,fill:'#94a3b8'}}>
+          {c.x}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// TrendCharts — disponibilidad diaria + mensual desde /api/history
+// ──────────────────────────────────────────────────────────────
+function TrendCharts() {
+  const [daily,   setDaily]   = useState([]);
+  const [monthly, setMonthly] = useState([]);
+  const [loaded,  setLoaded]  = useState(false);
+
+  useEffect(() => {
+    fetch('/api/history')
+      .then(r => r.json())
+      .then(d => { if (d.ok) { setDaily(d.daily || []); setMonthly(d.monthly || []); } })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+  const dailyPts = daily.slice(-30).map(d => {
+    const [, m, dd] = d.date.split('-');
+    return { x: `${dd}/${m}`, y: d.pct, sub: `${d.date}: ${d.pct}% (${d.online}/${d.total})` };
+  });
+  const monthlyPts = monthly.slice(-13).map(m => {
+    const [y, mm] = m.month.split('-');
+    return { x: `${MESES[+mm-1]} ${y.slice(2)}`, y: m.pct, sub: `${m.month}: ${m.pct}% promedio (${m.days} día${m.days!==1?'s':''})` };
+  });
+
+  const box = { background:'#fff', border:'1px solid #e4e7ec', borderRadius:8, padding:'14px 18px' };
+  const titleStyle = { fontSize:12, fontWeight:700, color:'#2d3540', marginBottom:4 };
+  const subStyle = { fontSize:10.5, color:'#9ca3af', marginBottom:8 };
+
+  return (
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,padding:'12px 20px 0'}}>
+      <div style={box}>
+        <div style={titleStyle}>Disponibilidad diaria</div>
+        <div style={subStyle}>% online por día · últimos {dailyPts.length || 30} días</div>
+        <LineChart points={loaded ? dailyPts : []} color="#3b9bf2" />
+      </div>
+      <div style={box}>
+        <div style={titleStyle}>Disponibilidad mensual</div>
+        <div style={subStyle}>% online promedio por mes</div>
+        <LineChart points={loaded ? monthlyPts : []} color="#9b6dff" />
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Mini donut (SVG inline, sin dependencias)
+// ──────────────────────────────────────────────────────────────
 function MiniDonut({ data, title }) {
   const size = 160, stroke = 28, r = (size - stroke) / 2;
   const cx = size / 2, cy = size / 2;
@@ -2616,6 +2737,9 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
           </Card>
         </div>
       )}
+
+      {/* ── Gráficos de tendencia (diario + mensual) ── */}
+      <TrendCharts />
 
       {/* ── Tabla dinámica consolidada ── */}
       <div style={{padding:'12px 20px 24px'}}>

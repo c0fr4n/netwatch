@@ -311,6 +311,17 @@ async function saveDailySnapshot() {
       try { await redis.del(`netwatch:snapshot:${old}`); } catch {}
     }
     await saveToRedis("netwatch:snapshots:index", idx);
+
+    // Resumen diario compacto (para gráficos de tendencia, barato de servir)
+    const counted = devices.filter((d) => !d.ex); // excluye No Considerar / Cambio de marca
+    const total   = counted.length;
+    const online  = counted.filter((d) => d.on).length;
+    const history = (await loadFromRedis("netwatch:history")) || {};
+    history[today] = { total, online, offline: total - online, ts: Date.now() };
+    // Conservar ~13 meses para la vista mensual
+    const keys = Object.keys(history).sort();
+    while (keys.length > 400) { delete history[keys.shift()]; }
+    await saveToRedis("netwatch:history", history);
   } catch (e) {
     console.error("[Snapshot]", e.message);
   }
@@ -520,6 +531,42 @@ app.delete("/api/brand-change/:deviceId", async (req, res) => {
 app.get("/api/snapshots", async (req, res) => {
   const idx = (await loadFromRedis("netwatch:snapshots:index")) || [];
   res.json({ ok: true, dates: idx });
+});
+
+// GET /api/history — serie diaria compacta para gráficos de tendencia
+app.get("/api/history", async (req, res) => {
+  const history = (await loadFromRedis("netwatch:history")) || {};
+  const daily = Object.entries(history)
+    .map(([date, v]) => ({
+      date,
+      total:   v.total,
+      online:  v.online,
+      offline: v.offline,
+      pct:     v.total > 0 ? +(v.online / v.total * 100).toFixed(1) : 0,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // Agregado mensual: promedio de % disponibilidad y de online del mes
+  const months = {};
+  daily.forEach((d) => {
+    const m = d.date.slice(0, 7); // YYYY-MM
+    if (!months[m]) months[m] = { month: m, sumPct: 0, sumOnline: 0, sumTotal: 0, days: 0 };
+    months[m].sumPct    += d.pct;
+    months[m].sumOnline += d.online;
+    months[m].sumTotal  += d.total;
+    months[m].days++;
+  });
+  const monthly = Object.values(months)
+    .map((m) => ({
+      month:  m.month,
+      pct:    m.days > 0 ? +(m.sumPct / m.days).toFixed(1) : 0,
+      online: m.days > 0 ? Math.round(m.sumOnline / m.days) : 0,
+      total:  m.days > 0 ? Math.round(m.sumTotal / m.days) : 0,
+      days:   m.days,
+    }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+
+  res.json({ ok: true, daily, monthly });
 });
 
 // GET /api/snapshots/:date — datos completos de esa fecha (YYYY-MM-DD)
