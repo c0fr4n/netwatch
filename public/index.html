@@ -2130,7 +2130,9 @@ async function unbrandChangeDevice(deviceId) {
 // ──────────────────────────────────────────────────────────────
 // ──────────────────────────────────────────────────────────────
 // LineChart — gráfico de línea SVG (sin dependencias)
-// points: [{ x:'label', y:Number, sub:'tooltip' }]
+// points: [{ x:'label', y:Number|null, sub:'tooltip' }]
+//   y == null  → hueco (slot del eje sin datos aún)
+//   hasData    → si todos los slots están vacíos, muestra placeholder
 // ──────────────────────────────────────────────────────────────
 function LineChart({ points, color = '#3b9bf2', unit = '%' }) {
   const W = 440, H = 190;
@@ -2138,7 +2140,8 @@ function LineChart({ points, color = '#3b9bf2', unit = '%' }) {
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
 
-  if (!points || points.length === 0) {
+  const real = (points || []).filter(p => p.y != null);
+  if (real.length === 0) {
     return (
       <div style={{height:H,display:'flex',alignItems:'center',justifyContent:'center',color:'#9ca3af',fontSize:12}}>
         Aún no hay datos suficientes
@@ -2146,7 +2149,7 @@ function LineChart({ points, color = '#3b9bf2', unit = '%' }) {
     );
   }
 
-  const ys = points.map(p => p.y);
+  const ys = real.map(p => p.y);
   let yMin = Math.min(...ys), yMax = Math.max(...ys);
   if (yMin === yMax) { yMin = Math.max(0, yMin - 5); yMax = Math.min(100, yMax + 5); }
   else { const pad = (yMax - yMin) * 0.15; yMin = Math.max(0, yMin - pad); yMax = Math.min(100, yMax + pad); }
@@ -2156,14 +2159,18 @@ function LineChart({ points, color = '#3b9bf2', unit = '%' }) {
   const xAt = i => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
   const yAt = v => padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
 
-  const coords = points.map((p, i) => ({ ...p, cx: xAt(i), cy: yAt(p.y) }));
-  const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.cx.toFixed(1)} ${c.cy.toFixed(1)}`).join(' ');
-  const areaPath = `${linePath} L ${coords[n-1].cx.toFixed(1)} ${padT+plotH} L ${coords[0].cx.toFixed(1)} ${padT+plotH} Z`;
+  // coords por slot; null donde no hay datos
+  const coords = points.map((p, i) => p.y == null ? null : ({ ...p, i, cx: xAt(i), cy: yAt(p.y) }));
 
-  // Y gridlines (3 niveles)
+  // tramos contiguos de datos (la línea se corta en los huecos)
+  const runs = [];
+  let cur = [];
+  coords.forEach(c => { if (c) cur.push(c); else { if (cur.length) runs.push(cur); cur = []; } });
+  if (cur.length) runs.push(cur);
+
   const yTicks = [yMin, (yMin + yMax) / 2, yMax];
-  // X labels: máx ~6 para no saturar
-  const xStep = Math.max(1, Math.ceil(n / 6));
+  // X labels: todos si hay ≤12 slots, si no ~7 repartidos
+  const xStep = n <= 12 ? 1 : Math.ceil(n / 7);
   const gid = 'lg' + color.replace('#', '');
 
   return (
@@ -2182,17 +2189,24 @@ function LineChart({ points, color = '#3b9bf2', unit = '%' }) {
           </text>
         </g>
       ))}
-      <path d={areaPath} fill={`url(#${gid})`} />
-      <path d={linePath} fill="none" stroke={color} strokeWidth="2"
-        strokeLinejoin="round" strokeLinecap="round"/>
-      {coords.map((c, i) => (
+      {runs.map((run, ri) => {
+        const line = run.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.cx.toFixed(1)} ${c.cy.toFixed(1)}`).join(' ');
+        const area = `${line} L ${run[run.length-1].cx.toFixed(1)} ${padT+plotH} L ${run[0].cx.toFixed(1)} ${padT+plotH} Z`;
+        return (
+          <g key={ri}>
+            <path d={area} fill={`url(#${gid})`} />
+            <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
+          </g>
+        );
+      })}
+      {coords.map((c, i) => c && (
         <circle key={i} cx={c.cx} cy={c.cy} r="2.6" fill="#fff" stroke={color} strokeWidth="1.6">
           <title>{c.sub || `${c.x}: ${c.y}${unit}`}</title>
         </circle>
       ))}
-      {coords.map((c, i) => (i % xStep === 0 || i === n-1) && (
-        <text key={'x'+i} x={c.cx} y={H-9} textAnchor="middle" style={{fontSize:9,fill:'#94a3b8'}}>
-          {c.x}
+      {points.map((p, i) => (i % xStep === 0 || i === n-1) && (
+        <text key={'x'+i} x={xAt(i)} y={H-9} textAnchor="middle" style={{fontSize:9,fill:'#94a3b8'}}>
+          {p.x}
         </text>
       ))}
     </svg>
@@ -2200,8 +2214,11 @@ function LineChart({ points, color = '#3b9bf2', unit = '%' }) {
 }
 
 // ──────────────────────────────────────────────────────────────
-// TrendCharts — disponibilidad diaria + mensual desde /api/history
+// TrendCharts — disponibilidad diaria (mes actual) + mensual (año actual)
 // ──────────────────────────────────────────────────────────────
+const MESES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const MESES_LARGO = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
 function TrendCharts() {
   const [daily,   setDaily]   = useState([]);
   const [monthly, setMonthly] = useState([]);
@@ -2215,16 +2232,41 @@ function TrendCharts() {
       .finally(() => setLoaded(true));
   }, []);
 
-  const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  // Fecha actual en zona horaria de Chile
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' }); // YYYY-MM-DD
+  const [yStr, mStr] = todayStr.split('-');
+  const year = +yStr, month = +mStr;
 
-  const dailyPts = daily.slice(-30).map(d => {
-    const [, m, dd] = d.date.split('-');
-    return { x: `${dd}/${m}`, y: d.pct, sub: `${d.date}: ${d.pct}% (${d.online}/${d.total})` };
-  });
-  const monthlyPts = monthly.slice(-13).map(m => {
-    const [y, mm] = m.month.split('-');
-    return { x: `${MESES[+mm-1]} ${y.slice(2)}`, y: m.pct, sub: `${m.month}: ${m.pct}% promedio (${m.days} día${m.days!==1?'s':''})` };
-  });
+  // Diario: todos los días del mes actual (eje fijo 1 → fin de mes)
+  const dailyMap = {};
+  daily.forEach(d => { dailyMap[d.date] = d; });
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const dailyPts = [];
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dd = String(day).padStart(2, '0');
+    const key = `${yStr}-${mStr}-${dd}`;
+    const e = dailyMap[key];
+    dailyPts.push({
+      x: String(day),
+      y: e ? e.pct : null,
+      sub: e ? `${key}: ${e.pct}% (${e.online}/${e.total})` : `${key}: sin datos`,
+    });
+  }
+
+  // Mensual: los 12 meses del año actual (ene → dic)
+  const monthlyMap = {};
+  monthly.forEach(m => { monthlyMap[m.month] = m; });
+  const monthlyPts = [];
+  for (let mo = 1; mo <= 12; mo++) {
+    const mm = String(mo).padStart(2, '0');
+    const key = `${yStr}-${mm}`;
+    const e = monthlyMap[key];
+    monthlyPts.push({
+      x: MESES_CORTO[mo-1],
+      y: e ? e.pct : null,
+      sub: e ? `${MESES_LARGO[mo-1]} ${year}: ${e.pct}% promedio (${e.days} día${e.days!==1?'s':''})` : `${MESES_LARGO[mo-1]} ${year}: sin datos`,
+    });
+  }
 
   const box = { background:'#fff', border:'1px solid #e4e7ec', borderRadius:8, padding:'14px 18px' };
   const titleStyle = { fontSize:12, fontWeight:700, color:'#2d3540', marginBottom:4 };
@@ -2234,12 +2276,12 @@ function TrendCharts() {
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,padding:'12px 20px 0'}}>
       <div style={box}>
         <div style={titleStyle}>Disponibilidad diaria</div>
-        <div style={subStyle}>% online por día · últimos {dailyPts.length || 30} días</div>
+        <div style={subStyle}>% online por día · {MESES_LARGO[month-1]} {year}</div>
         <LineChart points={loaded ? dailyPts : []} color="#3b9bf2" />
       </div>
       <div style={box}>
         <div style={titleStyle}>Disponibilidad mensual</div>
-        <div style={subStyle}>% online promedio por mes</div>
+        <div style={subStyle}>% online promedio por mes · {year}</div>
         <LineChart points={loaded ? monthlyPts : []} color="#9b6dff" />
       </div>
     </div>
