@@ -342,13 +342,13 @@ app.get("/api/devices", async (req, res) => {
       ? Object.keys(SERVERS)
       : [serverParam].filter((k) => SERVERS[k]);
 
-  try {
-    const results = {};
-    await Promise.all(
-      servers.map(async (key) => {
-        const cfg = SERVERS[key];
-        if (!cfg.url) { results[key] = { ok: false, error: "No configurado" }; return; }
-        const s = state[key];
+  const results = {};
+  await Promise.all(
+    servers.map(async (key) => {
+      const cfg = SERVERS[key];
+      if (!cfg.url) { results[key] = { ok: false, error: "No configurado" }; return; }
+      const s = state[key];
+      try {
         const cached =
           s.devicesCache &&
           s.devicesCacheTime &&
@@ -383,12 +383,27 @@ app.get("/api/devices", async (req, res) => {
             ? Math.round((Date.now() - s.devicesCacheTime) / 1000)
             : 0,
         };
-      })
-    );
-    res.json({ ok: true, servers: results, umbralMin: UMBRAL_MIN });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
+      } catch (error) {
+        // Un servidor caído no debe tumbar al otro. Devolver caché viejo si existe.
+        console.error(`[/api/devices ${cfg.label}] ${error.message}`);
+        if (s.devicesCache) {
+          results[key] = {
+            ok: true,
+            label: cfg.label,
+            devices: s.devicesCache,
+            cached: true,
+            stale: true,
+            cacheAge: s.devicesCacheTime
+              ? Math.round((Date.now() - s.devicesCacheTime) / 1000)
+              : null,
+          };
+        } else {
+          results[key] = { ok: false, label: cfg.label, error: error.message };
+        }
+      }
+    })
+  );
+  res.json({ ok: true, servers: results, umbralMin: UMBRAL_MIN });
 });
 
 // GET /api/alerts?server=bosque|callecalle|both
