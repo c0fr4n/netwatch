@@ -2580,7 +2580,8 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
     if (q) list = list.filter(s =>
       s.name.toLowerCase().includes(q) ||
       (s.loc  || '').toLowerCase().includes(q) ||
-      (s.ip   || '').includes(q)
+      (s.ip   || '').includes(q) ||
+      (s.mac  || '').toLowerCase().includes(q)
     );
     return [...list].sort((a, b) => {
       const va = (a[sortCol] || '').toString().toLowerCase();
@@ -2854,7 +2855,7 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
               <thead style={{position:'sticky',top:0,zIndex:1,background:'#fff'}}>
                 <tr>
-                  {[['name','Nombre'],['loc','Grupo'],['state','Estado'],['ip','IP'],['model','Modelo'],['server','Servidor'],['tipoTienda','Tipo']].map(([col,label])=>(
+                  {[['name','Nombre'],['loc','Grupo'],['state','Estado'],['ip','IP'],['mac','MAC'],['model','Modelo'],['server','Servidor'],['tipoTienda','Tipo']].map(([col,label])=>(
                     <th key={col} onClick={() => toggleSort(col)} style={thStyle(col)}>
                       {label}{sortIcon(col)}
                     </th>
@@ -2875,6 +2876,7 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
                       </span>
                     </td>
                     <td style={{padding:'8px 12px',fontFamily:'monospace',fontSize:11,color:'#6b7280'}}>{s.ip}</td>
+                    <td style={{padding:'8px 12px',fontFamily:'monospace',fontSize:11,color:'#9ca3af'}}>{s.mac}</td>
                     <td style={{padding:'8px 12px',fontSize:11,color:'#9ca3af'}}>{s.model}</td>
                     <td style={{padding:'8px 12px'}}>
                       <span style={{fontSize:10,padding:'2px 8px',borderRadius:10,fontWeight:600,
