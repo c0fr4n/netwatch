@@ -2976,7 +2976,8 @@ function exportSnapshotExcel(snapshot) {
 // ──────────────────────────────────────────────────────────────
 function HistoricoCard() {
   const [dates,    setDates]    = useState([]);
-  const [selDate,  setSelDate]  = useState('');
+  const [selMonth, setSelMonth] = useState(''); // YYYY-MM
+  const [selDate,  setSelDate]  = useState(''); // YYYY-MM-DD
   const [snapshot, setSnapshot] = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
@@ -2987,7 +2988,9 @@ function HistoricoCard() {
       .then(d => {
         if (d.ok && d.dates.length > 0) {
           setDates(d.dates);
-          setSelDate(d.dates[d.dates.length - 1]); // más reciente
+          const last = d.dates[d.dates.length - 1]; // más reciente
+          setSelMonth(last.slice(0, 7));
+          setSelDate(last);
         }
       })
       .catch(() => {});
@@ -3006,9 +3009,20 @@ function HistoricoCard() {
       .finally(() => setLoading(false));
   }, [selDate]);
 
-  const fmtFecha = iso => {
-    const [y,m,dd] = iso.split('-');
-    return `${dd}-${m}-${y}`;
+  // Meses con datos (YYYY-MM), más reciente primero
+  const months = [...new Set(dates.map(d => d.slice(0, 7)))].sort().reverse();
+  // Días disponibles dentro del mes seleccionado, más reciente primero
+  const daysInMonth = dates.filter(d => d.slice(0, 7) === selMonth).sort().reverse();
+
+  function onMonthChange(m) {
+    setSelMonth(m);
+    const days = dates.filter(d => d.slice(0, 7) === m).sort();
+    if (days.length) setSelDate(days[days.length - 1]); // día más reciente del mes
+  }
+
+  const fmtMes = ym => {
+    const [y, m] = ym.split('-');
+    return `${MESES_LARGO[+m-1].charAt(0).toUpperCase() + MESES_LARGO[+m-1].slice(1)} ${y}`;
   };
 
   let resumen = null;
@@ -3022,6 +3036,9 @@ function HistoricoCard() {
     };
   }
 
+  const selStyle = {padding:'5px 10px',fontSize:12,border:'1px solid #d1d5db',borderRadius:6,
+    background:'#fff',color:'#2d3540',cursor:'pointer'};
+
   return (
     <Card title="Histórico por fecha"
       headerRight={<span style={{fontSize:11,color:'#9ca3af'}}>{dates.length} día{dates.length!==1?'s':''} con datos</span>}>
@@ -3034,12 +3051,16 @@ function HistoricoCard() {
         ) : (
           <>
             <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-              <label style={{fontSize:12,color:'#6b7280',fontWeight:600}}>Fecha:</label>
-              <select value={selDate} onChange={e => setSelDate(e.target.value)}
-                style={{padding:'5px 10px',fontSize:12,border:'1px solid #d1d5db',borderRadius:6,
-                  background:'#fff',color:'#2d3540',cursor:'pointer'}}>
-                {[...dates].reverse().map(d => (
-                  <option key={d} value={d}>{fmtFecha(d)}</option>
+              <label style={{fontSize:12,color:'#6b7280',fontWeight:600}}>Mes:</label>
+              <select value={selMonth} onChange={e => onMonthChange(e.target.value)} style={selStyle}>
+                {months.map(m => (
+                  <option key={m} value={m}>{fmtMes(m)}</option>
+                ))}
+              </select>
+              <label style={{fontSize:12,color:'#6b7280',fontWeight:600}}>Día:</label>
+              <select value={selDate} onChange={e => setSelDate(e.target.value)} style={selStyle}>
+                {daysInMonth.map(d => (
+                  <option key={d} value={d}>{(+d.slice(8)).toString()}</option>
                 ))}
               </select>
               <button onClick={() => snapshot && exportSnapshotExcel(snapshot)}
