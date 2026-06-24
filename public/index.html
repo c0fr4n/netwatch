@@ -2470,6 +2470,36 @@ function exportExcel(allScreensData) {
 }
 
 // ──────────────────────────────────────────────────────────────
+// Excel export — inventario filtrado (misma info que el PDF)
+// ──────────────────────────────────────────────────────────────
+function exportFilteredExcel(filtered) {
+  if (!window.XLSX) { alert('Librería Excel no disponible'); return; }
+  const XLSX = window.XLSX;
+  const tipoLabel = t => ({ propia: 'Adm. Propia', franquicia: 'Franquicia', sin_clasificar: 'Sin clasificar' }[t] || 'Sin clasificar');
+
+  const cols = ['Nombre','Grupo','Estado','IP','MAC','Modelo','Servidor','Tipo'];
+  const rows = filtered.map(s => ({
+    'Nombre':   s.name,
+    'Grupo':    s.loc,
+    'Estado':   s.state === 'online' ? 'Online' : 'Offline',
+    'IP':       s.ip,
+    'MAC':      s.mac,
+    'Modelo':   s.model,
+    'Servidor': s.server === 'bosque' ? 'Bosque' : 'Callecalle',
+    'Tipo':     tipoLabel(s.tipoTienda),
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows, { header: cols });
+  ws['!cols'] = [32,40,10,16,20,14,12,14].map(w => ({ wch: w }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
+
+  const pad = n => String(n).padStart(2,'0');
+  const d = new Date();
+  XLSX.writeFile(wb, `netwatch_inventario_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.xlsx`);
+}
+
+// ──────────────────────────────────────────────────────────────
 // PDF export
 // ──────────────────────────────────────────────────────────────
 async function exportScreensPDF(filtered, chartsRef) {
@@ -2792,6 +2822,11 @@ function ScreensView({ screens, allScreensData, showExcluded, setShowExcluded, s
             <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
               <span className="me-card-stat me-card-stat-ok"><span className="me-state-dot"/> {online} online</span>
               <span className="me-card-stat me-card-stat-crit"><span className="me-state-dot"/> {offline} offline</span>
+              <button onClick={() => exportFilteredExcel(filtered)}
+                style={{padding:'4px 10px',fontSize:11,fontWeight:600,borderRadius:5,
+                  border:'1.5px solid #16a34a',background:'#f0fdf4',color:'#16a34a',cursor:'pointer'}}>
+                ↓ Excel
+              </button>
               <button onClick={() => exportScreensPDF(filtered, chartsRef)}
                 style={{padding:'4px 10px',fontSize:11,fontWeight:600,borderRadius:5,
                   border:'1.5px solid #dc2626',background:'#fef2f2',color:'#dc2626',cursor:'pointer'}}>
