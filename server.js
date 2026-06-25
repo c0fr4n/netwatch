@@ -199,6 +199,10 @@ async function getAllDevices(serverKey, token) {
     page++;
   }
 
+  // Diagnóstico: cuántos reporta la API vs cuántos llegan vs cuántos quedan
+  state[serverKey].lastApiTotal = totalCount;       // lo que dice la API MagicINFO
+  state[serverKey].lastRawCount = allDevices.length; // recibidos antes de filtrar
+
   // Devolver todos los dispositivos etiquetados; el cliente controla visibilidad
   return allDevices.filter((d) => !isManuallyExcluded(d));
 }
@@ -462,7 +466,9 @@ app.get("/api/status", async (req, res) => {
     status[key] = {
       label: cfg.label,
       server: cfg.url,
-      deviceCount: s.devicesCache?.length ?? null,
+      apiTotal: s.lastApiTotal ?? null,    // lo que reporta la API MagicINFO
+      rawCount: s.lastRawCount ?? null,    // recibidos antes de excluir
+      deviceCount: s.devicesCache?.length ?? null, // después de excluir (lo que ve el monitor)
       alertCount: alerts.length,
       cacheAge: s.devicesCacheTime
         ? Math.round((Date.now() - s.devicesCacheTime) / 1000)
